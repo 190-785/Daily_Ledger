@@ -23,3 +23,82 @@
 @utility btn-base {
   @apply inline-block px-4 py-2 rounded;
 }
+
+/* Custom Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInDown {
+  from { 
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from { 
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from { 
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to { 
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes ripple {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* Animation Classes */
+.animate-fadeIn { animation: fadeIn; }
+.animate-slideInUp { animation: slideInUp; }
+.animate-slideInDown { animation: slideInDown; }
+.animate-slideInLeft { animation: slideInLeft; }
+.animate-slideInRight { animation: slideInRight; }
+.animate-scaleIn { animation: scaleIn; }
+.animate-ripple { animation: ripple 600ms ease-out; }
+.animate-spin-slow { animation: spin 3s linear infinite; }
+.animate-spin-fast { animation: spin 0.5s linear infinite; }
