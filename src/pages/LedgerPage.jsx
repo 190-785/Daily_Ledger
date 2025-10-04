@@ -9,11 +9,14 @@ import {
   updateDoc,
   doc,
   Timestamp,
+  writeBatch,
 } from "firebase/firestore";
 import { updateDailyStats, updateMonthlyStats } from "../utils/statsCalculator";
+import MemberListControls from "../components/MemberListControls";
 
 export default function LedgerPage({ userId }) {
   const [members, setMembers] = useState([]);
+  const [displayedMembers, setDisplayedMembers] = useState([]);
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -22,18 +25,56 @@ export default function LedgerPage({ userId }) {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [editAmount, setEditAmount] = useState("");
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState("rank");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
   useEffect(() => {
     const membersQuery = query(collection(db, "users", userId, "members"));
     const unsubscribe = onSnapshot(membersQuery, (snapshot) => {
-      const sortedMembers = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setMembers(sortedMembers);
+      const membersData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setMembers(membersData);
       setLoading(false);
     });
     return () => unsubscribe();
   }, [userId]);
+
+  // Apply sorting and search
+  useEffect(() => {
+    let filtered = [...members];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter((member) =>
+        member.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    switch (sortBy) {
+      case "rank":
+        filtered.sort((a, b) => (a.rank || 0) - (b.rank || 0));
+        break;
+      case "alphabetical":
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "addedTime":
+        filtered.sort((a, b) => {
+          const timeA = a.createdOn?.toMillis() || 0;
+          const timeB = b.createdOn?.toMillis() || 0;
+          return timeA - timeB;
+        });
+        break;
+      default:
+        break;
+    }
+
+    setDisplayedMembers(filtered);
+  }, [members, sortBy, searchQuery]);
 
   useEffect(() => {
     if (!selectedDate || !userId) return;
@@ -98,6 +139,70 @@ export default function LedgerPage({ userId }) {
     updateMonthlyStats(userId, monthYear).catch(console.error);
   };
 
+  // Drag and drop handlers
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (index !== draggedIndex) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = async (e, dropIndex) => {
+    e.preventDefault();
+    
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const draggedMember = displayedMembers[draggedIndex];
+    const dropMember = displayedMembers[dropIndex];
+
+    // Update all ranks in the affected range
+    const batch = writeBatch(db);
+    
+    if (draggedIndex < dropIndex) {
+      // Moving down: shift items up
+      for (let i = draggedIndex + 1; i <= dropIndex; i++) {
+        const member = displayedMembers[i];
+        const memberRef = doc(db, "users", userId, "members", member.id);
+        batch.update(memberRef, { rank: member.rank - 1 });
+      }
+      const draggedRef = doc(db, "users", userId, "members", draggedMember.id);
+      batch.update(draggedRef, { rank: dropMember.rank });
+    } else {
+      // Moving up: shift items down
+      for (let i = dropIndex; i < draggedIndex; i++) {
+        const member = displayedMembers[i];
+        const memberRef = doc(db, "users", userId, "members", member.id);
+        batch.update(memberRef, { rank: member.rank + 1 });
+      }
+      const draggedRef = doc(db, "users", userId, "members", draggedMember.id);
+      batch.update(draggedRef, { rank: dropMember.rank });
+    }
+
+    await batch.commit();
+    
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
   return (
     <div className="bg-white p-6 rounded-xl shadow-md">
       <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
@@ -109,11 +214,23 @@ export default function LedgerPage({ userId }) {
           className="bg-gray-50 border-gray-300 rounded-lg p-2"
         />
       </div>
+
+      {/* Search and Sort Controls */}
+      <MemberListControls
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        showRankOption={true}
+        totalMembers={members.length}
+        filteredCount={displayedMembers.length}
+      />
+
       {loading ? (
         <p>Loading members...</p>
       ) : (
         <div className="space-y-3">
-          {members.map((member) => {
+          {displayedMembers.map((member, index) => {
             const memberTransactions = transactions[member.id] || [];
             const totalPaidToday = memberTransactions.reduce(
               (acc, curr) => acc + curr.amount,
@@ -124,12 +241,53 @@ export default function LedgerPage({ userId }) {
               <div
                 key={member.id}
                 className={`p-4 rounded-lg border ${
-                  hasPaid ? "bg-green-100" : "bg-gray-50"
+                  totalPaidToday > 0 
+                    ? "bg-green-100 border-green-300" 
+                    : "bg-red-100 border-red-300"
+                } ${
+                  draggedIndex === index 
+                    ? "opacity-50 border-blue-500" 
+                    : dragOverIndex === index 
+                    ? "border-blue-400 border-2 shadow-lg" 
+                    : ""
                 }`}
+                draggable={sortBy === "rank"}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
               >
                 <div className="flex flex-wrap items-center justify-between gap-4">
-                  <span className="font-bold text-lg">{member.name}</span>
-                  {hasPaid ? (
+                  <div className="flex items-center gap-3">
+                    {sortBy === "rank" && (
+                      <div 
+                        className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+                        title="Drag to reorder"
+                      >
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="20" 
+                          height="20" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="2" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round"
+                        >
+                          <line x1="8" y1="6" x2="21" y2="6"></line>
+                          <line x1="8" y1="12" x2="21" y2="12"></line>
+                          <line x1="8" y1="18" x2="21" y2="18"></line>
+                          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                        </svg>
+                      </div>
+                    )}
+                    <span className="font-bold text-lg">{member.name}</span>
+                  </div>
+                  {totalPaidToday > 0 ? (
                     <div className="font-semibold text-green-800">
                       Paid Today: ₹{totalPaidToday.toLocaleString()}
                     </div>
@@ -227,6 +385,11 @@ export default function LedgerPage({ userId }) {
               </div>
             );
           })}
+          {displayedMembers.length === 0 && members.length > 0 && (
+            <p className="text-center py-4 text-gray-500">
+              No members found matching your search.
+            </p>
+          )}
           {members.length === 0 && (
             <p className="text-center py-4 text-gray-500">
               Add members on the 'Members' page to get started.

@@ -40,11 +40,15 @@ export async function updateDailyStats(userId, date) {
     const paidCount = paidMemberIds.size;
     const pendingCount = members.length - paidCount;
 
+    // Sort members by rank
+    members.sort((a, b) => (a.rank || 0) - (b.rank || 0));
+
     const paidMembers = members
       .filter((m) => paidMemberIds.has(m.id))
       .map((m) => ({
         memberId: m.id,
         memberName: m.name,
+        rank: m.rank || 0,
         amount: todayTransactions
           .filter((t) => t.memberId === m.id)
           .reduce((sum, t) => sum + t.amount, 0),
@@ -55,6 +59,7 @@ export async function updateDailyStats(userId, date) {
       .map((m) => ({
         memberId: m.id,
         memberName: m.name,
+        rank: m.rank || 0,
       }));
 
     // Save to Firebase
@@ -175,6 +180,7 @@ export async function updateMonthlyStats(userId, monthYear) {
         membersWithDues.push({
           memberId: member.id,
           memberName: member.name,
+          rank: member.rank || 0,
           due: finalBalance,
           paidThisMonth,
           previousBalance: previousBalanceDue,
@@ -182,7 +188,8 @@ export async function updateMonthlyStats(userId, monthYear) {
       }
     }
 
-    membersWithDues.sort((a, b) => b.due - a.due);
+    // Sort by rank instead of due amount
+    membersWithDues.sort((a, b) => (a.rank || 0) - (b.rank || 0));
 
     const totalTarget = members.reduce((sum, m) => sum + m.monthlyTarget, 0);
     const collectionRate =

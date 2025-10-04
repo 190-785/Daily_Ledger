@@ -12,9 +12,11 @@ import {
   writeBatch,
   Timestamp,
 } from "firebase/firestore";
+import MemberListControls from "../components/MemberListControls";
 
 export default function MembersPage({ userId }) {
   const [members, setMembers] = useState([]);
+  const [displayedMembers, setDisplayedMembers] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -25,17 +27,82 @@ export default function MembersPage({ userId }) {
   const [formError, setFormError] = useState("");
   const [deletingMember, setDeletingMember] = useState(null);
   const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
+  const [sortBy, setSortBy] = useState("addedTime"); // 'alphabetical', 'addedTime'
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Initialize ranks for existing members without rank
+  useEffect(() => {
+    const initializeRanks = async () => {
+      const membersQuery = query(collection(db, "users", userId, "members"));
+      const snapshot = await getDocs(membersQuery);
+      
+      const membersWithoutRank = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((member) => member.rank === undefined);
+      
+      if (membersWithoutRank.length > 0) {
+        // Sort by creation time
+        membersWithoutRank.sort((a, b) => {
+          const timeA = a.createdOn?.toMillis() || 0;
+          const timeB = b.createdOn?.toMillis() || 0;
+          return timeA - timeB;
+        });
+        
+        // Assign ranks
+        const batch = writeBatch(db);
+        membersWithoutRank.forEach((member, index) => {
+          const memberRef = doc(db, "users", userId, "members", member.id);
+          batch.update(memberRef, { rank: index + 1 });
+        });
+        
+        await batch.commit();
+      }
+    };
+    
+    initializeRanks();
+  }, [userId]);
 
   useEffect(() => {
     const membersQuery = query(collection(db, "users", userId, "members"));
     const unsubscribe = onSnapshot(membersQuery, (snapshot) => {
-      const sortedMembers = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setMembers(sortedMembers);
+      const membersData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setMembers(membersData);
     });
     return () => unsubscribe();
   }, [userId]);
+
+  // Apply sorting and search (no rank option for Members page)
+  useEffect(() => {
+    let filtered = [...members];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter((member) =>
+        member.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    switch (sortBy) {
+      case "alphabetical":
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "addedTime":
+        filtered.sort((a, b) => {
+          const timeA = a.createdOn?.toMillis() || 0;
+          const timeB = b.createdOn?.toMillis() || 0;
+          return timeA - timeB;
+        });
+        break;
+      default:
+        break;
+    }
+
+    setDisplayedMembers(filtered);
+  }, [members, sortBy, searchQuery]);
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -73,9 +140,16 @@ export default function MembersPage({ userId }) {
       monthlyTarget: monthly,
     };
 
+    // Get max rank and assign new member rank + 1
+    const maxRank = members.reduce(
+      (max, member) => Math.max(max, member.rank || 0),
+      0
+    );
+
     await addDoc(collection(db, "users", userId, "members"), {
       ...memberData,
       createdOn: Timestamp.now(),
+      rank: maxRank + 1,
     });
     resetForm();
   };
@@ -151,6 +225,17 @@ export default function MembersPage({ userId }) {
           {showForm ? "Cancel" : "+ Add Member"}
         </button>
       </div>
+
+      {/* Search and Sort Controls */}
+      <MemberListControls
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        showRankOption={false}
+        totalMembers={members.length}
+        filteredCount={displayedMembers.length}
+      />
       {showForm && (
         <div className="mb-6 p-6 bg-gray-50 rounded-lg border">
           <h3 className="text-xl font-semibold mb-4">
@@ -207,7 +292,10 @@ export default function MembersPage({ userId }) {
 
       {/* Update Confirmation Popup */}
       {showUpdateConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+        >
           <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full mx-4">
             <h3 className="text-2xl font-bold mb-4 text-gray-800">
               Confirm Update
@@ -254,7 +342,7 @@ export default function MembersPage({ userId }) {
             </tr>
           </thead>
           <tbody>
-            {members.map((member) => (
+            {displayedMembers.map((member) => (
               <tr key={member.id} className="border-b hover:bg-gray-50">
                 <td className="py-3 px-4">{member.name}</td>
                 <td className="py-3 px-4">

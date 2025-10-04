@@ -17,7 +17,7 @@ export default function MonthlyViewPage({ userId }) {
     const unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
       const sortedMembers = snapshot.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => (a.rank || 0) - (b.rank || 0));
       setMembers(sortedMembers);
     });
 
