@@ -10,6 +10,7 @@ import LedgerPage from "./pages/LedgerPage";
 import MembersPage from "./pages/MembersPage";
 import MonthlyViewPage from "./pages/MonthlyViewPage";
 import ProfilePage from "./pages/ProfilePage";
+import ListsPage from "./pages/ListsPage";
 import Footer from "./components/Footer";
 
 export default function App() {
@@ -152,6 +153,16 @@ const MainApp = ({ user, userProfile }) => {
                 📅 Monthly View
               </Link>
               <Link
+                to="/lists"
+                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                  isActive("/lists")
+                    ? "bg-white text-blue-700 shadow-md"
+                    : "text-white hover:bg-blue-700"
+                }`}
+              >
+                📋 Lists
+              </Link>
+              <Link
                 to="/profile"
                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                   isActive("/profile")
@@ -178,6 +189,7 @@ const MainApp = ({ user, userProfile }) => {
                 <option value="/ledger">📝 Ledger</option>
                 <option value="/members">👥 Members</option>
                 <option value="/monthly">📅 Monthly</option>
+                <option value="/lists">📋 Lists</option>
                 <option value="/profile">👤 Profile</option>
               </select>
               <button
@@ -197,6 +209,7 @@ const MainApp = ({ user, userProfile }) => {
           <Route path="/ledger" element={<LedgerPage userId={user.uid} />} />
           <Route path="/members" element={<MembersPage userId={user.uid} />} />
           <Route path="/monthly" element={<MonthlyViewPage userId={user.uid} />} />
+          <Route path="/lists" element={<ListsPage userId={user.uid} />} />
           <Route path="/profile" element={<ProfilePage userProfile={userProfile} />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

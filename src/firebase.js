@@ -1,6 +1,18 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  collection, 
+  query, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc,
+  orderBy
+} from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBASO27tHvmYgcWbCFHkR7g38IkYPF5VlY",
@@ -115,6 +127,270 @@ export const getUserProfile = async (userId) => {
   } catch (error) {
     console.error('Error getting user profile:', error);
     return null;
+  }
+};
+
+// --- List Management Functions ---
+
+/**
+ * Creates a new list
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {Object} listData - List data (name, description, memberIds)
+ * @returns {Promise<string>} - The created list ID
+ */
+export const createList = async (userId, listData) => {
+  try {
+    const listsRef = collection(db, 'users', userId, 'lists');
+    const docRef = await addDoc(listsRef, {
+      name: listData.name,
+      description: listData.description || '',
+      memberIds: listData.memberIds || [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      shareSettings: {
+        type: 'dynamic', // 'dynamic' | 'lastMonth' | 'currentDay'
+        allowedViews: ['daily', 'monthly']
+      },
+      sharedWith: [] // Array of { userId, username, email, accessLevel, sharedAt }
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating list:', error);
+    throw error;
+  }
+};
+
+/**
+ * Gets all lists for a user
+ * @param {string} userId - The user's Firebase Auth UID
+ * @returns {Promise<Array>} - Array of list objects with IDs
+ */
+export const getUserLists = async (userId) => {
+  try {
+    const listsRef = collection(db, 'users', userId, 'lists');
+    const q = query(listsRef, orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    
+    const lists = [];
+    querySnapshot.forEach((doc) => {
+      lists.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    return lists;
+  } catch (error) {
+    console.error('Error getting user lists:', error);
+    throw error;
+  }
+};
+
+/**
+ * Gets a single list by ID
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} listId - The list ID
+ * @returns {Promise<Object|null>} - List data or null
+ */
+export const getListById = async (userId, listId) => {
+  try {
+    const listDoc = await getDoc(doc(db, 'users', userId, 'lists', listId));
+    if (listDoc.exists()) {
+      return {
+        id: listDoc.id,
+        ...listDoc.data()
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting list:', error);
+    return null;
+  }
+};
+
+/**
+ * Updates an existing list
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} listId - The list ID
+ * @param {Object} updates - Fields to update
+ */
+export const updateList = async (userId, listId, updates) => {
+  try {
+    const listRef = doc(db, 'users', userId, 'lists', listId);
+    await updateDoc(listRef, {
+      ...updates,
+      updatedAt: new Date()
+    });
+  } catch (error) {
+    console.error('Error updating list:', error);
+    throw error;
+  }
+};
+
+/**
+ * Deletes a list
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} listId - The list ID
+ */
+export const deleteList = async (userId, listId) => {
+  try {
+    const listRef = doc(db, 'users', userId, 'lists', listId);
+    await deleteDoc(listRef);
+  } catch (error) {
+    console.error('Error deleting list:', error);
+    throw error;
+  }
+};
+
+/**
+ * Gets lists shared with the current user
+ * @param {string} userId - The user's Firebase Auth UID
+ * @returns {Promise<Array>} - Array of shared list objects
+ */
+export const getSharedLists = async (userId) => {
+  try {
+    const sharedListsRef = collection(db, 'users', userId, 'sharedLists');
+    const q = query(sharedListsRef, orderBy('sharedAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    
+    const sharedLists = [];
+    querySnapshot.forEach((doc) => {
+      sharedLists.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    return sharedLists;
+  } catch (error) {
+    console.error('Error getting shared lists:', error);
+    throw error;
+  }
+};
+
+// --- Sharing Functions ---
+
+/**
+ * Searches for users by username
+ * @param {string} searchQuery - Username to search for
+ * @returns {Promise<Array>} - Array of matching users
+ */
+export const searchUsersByUsername = async (searchQuery) => {
+  try {
+    // Get username document
+    const usernameDoc = await getDoc(doc(db, 'usernames', searchQuery.toLowerCase()));
+    
+    if (!usernameDoc.exists()) {
+      return [];
+    }
+    
+    const userId = usernameDoc.data().userId;
+    const profileDoc = await getDoc(doc(db, 'users', userId, 'profile', 'info'));
+    
+    if (profileDoc.exists()) {
+      return [{
+        id: userId,
+        ...profileDoc.data()
+      }];
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Error searching users:', error);
+    return [];
+  }
+};
+
+/**
+ * Searches for users by email (exact match)
+ * Note: Firestore doesn't support email search directly
+ * In production, you'd use Cloud Functions or Algolia for this
+ * @returns {Promise<Array>} - Array of matching users
+ */
+export const searchUsersByEmail = async () => {
+  // For now, we'll return empty and rely on username search
+  return [];
+};
+
+/**
+ * Shares a list with another user
+ * @param {string} ownerUserId - The list owner's user ID
+ * @param {string} listId - The list ID
+ * @param {Object} shareData - Share data (recipientUserId, username, email, shareSettings)
+ */
+export const shareListWithUser = async (ownerUserId, listId, shareData) => {
+  try {
+    const { recipientUserId, username, email, shareSettings } = shareData;
+    
+    // Get the list data
+    const list = await getListById(ownerUserId, listId);
+    if (!list) {
+      throw new Error('List not found');
+    }
+    
+    // Update the list's sharedWith array
+    const listRef = doc(db, 'users', ownerUserId, 'lists', listId);
+    await updateDoc(listRef, {
+      sharedWith: [
+        ...(list.sharedWith || []),
+        {
+          userId: recipientUserId,
+          username: username,
+          email: email,
+          accessLevel: 'view',
+          sharedAt: new Date()
+        }
+      ],
+      shareSettings: shareSettings
+    });
+    
+    // Create entry in recipient's sharedLists collection
+    const sharedListRef = doc(db, 'users', recipientUserId, 'sharedLists', listId);
+    await setDoc(sharedListRef, {
+      originalListId: listId,
+      ownerUserId: ownerUserId,
+      ownerUsername: (await getUserProfile(ownerUserId))?.username || 'unknown',
+      listName: list.name,
+      description: list.description || '',
+      shareSettings: shareSettings,
+      sharedAt: new Date()
+    });
+  } catch (error) {
+    console.error('Error sharing list:', error);
+    throw error;
+  }
+};
+
+/**
+ * Revokes access to a shared list
+ * @param {string} ownerUserId - The list owner's user ID
+ * @param {string} listId - The list ID
+ * @param {string} recipientUserId - The user to revoke access from
+ */
+export const revokeListAccess = async (ownerUserId, listId, recipientUserId) => {
+  try {
+    // Get the list
+    const list = await getListById(ownerUserId, listId);
+    if (!list) {
+      throw new Error('List not found');
+    }
+    
+    // Remove user from sharedWith array
+    const updatedSharedWith = (list.sharedWith || []).filter(
+      share => share.userId !== recipientUserId
+    );
+    
+    const listRef = doc(db, 'users', ownerUserId, 'lists', listId);
+    await updateDoc(listRef, {
+      sharedWith: updatedSharedWith
+    });
+    
+    // Remove from recipient's sharedLists
+    const sharedListRef = doc(db, 'users', recipientUserId, 'sharedLists', listId);
+    await deleteDoc(sharedListRef);
+  } catch (error) {
+    console.error('Error revoking access:', error);
+    throw error;
   }
 };
 
