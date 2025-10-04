@@ -204,14 +204,14 @@ export default function LedgerPage({ userId }) {
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-md">
-      <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-        <h2 className="text-3xl font-bold">Daily Ledger</h2>
+    <div className="bg-white p-3 md:p-6 rounded-lg md:rounded-xl shadow-md">
+      <div className="flex flex-wrap justify-between items-center mb-4 md:mb-6 gap-2 md:gap-4">
+        <h2 className="text-xl md:text-3xl font-bold">Daily Ledger</h2>
         <input
           type="date"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="bg-gray-50 border-gray-300 rounded-lg p-2"
+          className="bg-gray-50 border-gray-300 rounded-lg p-2 text-sm md:text-base"
         />
       </div>
 
@@ -227,9 +227,9 @@ export default function LedgerPage({ userId }) {
       />
 
       {loading ? (
-        <p>Loading members...</p>
+        <p className="text-sm md:text-base">Loading members...</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2 md:space-y-3">
           {displayedMembers.map((member, index) => {
             const memberTransactions = transactions[member.id] || [];
             const totalPaidToday = memberTransactions.reduce(
@@ -240,7 +240,7 @@ export default function LedgerPage({ userId }) {
             return (
               <div
                 key={member.id}
-                className={`p-4 rounded-lg border ${
+                className={`p-3 md:p-4 rounded-lg border ${
                   totalPaidToday > 0 
                     ? "bg-green-100 border-green-300" 
                     : "bg-red-100 border-red-300"
@@ -258,17 +258,17 @@ export default function LedgerPage({ userId }) {
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
               >
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 md:gap-4">
+                  <div className="flex items-center gap-2 md:gap-3">
                     {sortBy === "rank" && (
                       <div 
-                        className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+                        className="hidden sm:block cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
                         title="Drag to reorder"
                       >
                         <svg 
                           xmlns="http://www.w3.org/2000/svg" 
-                          width="20" 
-                          height="20" 
+                          width="18" 
+                          height="18" 
                           viewBox="0 0 24 24" 
                           fill="none" 
                           stroke="currentColor" 
@@ -285,14 +285,14 @@ export default function LedgerPage({ userId }) {
                         </svg>
                       </div>
                     )}
-                    <span className="font-bold text-lg">{member.name}</span>
+                    <span className="font-bold text-base md:text-lg">{member.name}</span>
                   </div>
                   {totalPaidToday > 0 ? (
-                    <div className="font-semibold text-green-800">
+                    <div className="font-semibold text-green-800 text-sm md:text-base">
                       Paid Today: ₹{totalPaidToday.toLocaleString()}
                     </div>
                   ) : (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                       <button
                         onClick={() =>
                           handleAddTransaction(
@@ -300,9 +300,8 @@ export default function LedgerPage({ userId }) {
                             member.defaultDailyPayment
                           )
                         }
-                        className="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 text-sm"
+                        className="bg-blue-500 text-white font-semibold py-1.5 md:py-2 px-3 md:px-4 rounded-lg hover:bg-blue-600 text-xs md:text-sm"
                       >
-                        {" "}
                         + ₹{member.defaultDailyPayment.toLocaleString()}
                       </button>
                       <div className="flex items-center">
@@ -316,7 +315,7 @@ export default function LedgerPage({ userId }) {
                               [member.id]: e.target.value,
                             }))
                           }
-                          className="w-24 px-2 py-2 border rounded-l-lg text-sm"
+                          className="w-20 md:w-24 px-1.5 md:px-2 py-1.5 md:py-2 border rounded-l-lg text-xs md:text-sm"
                         />
                         <button
                           onClick={() =>
@@ -325,7 +324,7 @@ export default function LedgerPage({ userId }) {
                               customAmounts[member.id]
                             )
                           }
-                          className="bg-green-500 text-white font-semibold py-2 px-3 rounded-r-lg hover:bg-green-600 text-sm"
+                          className="bg-green-500 text-white font-semibold py-1.5 md:py-2 px-2 md:px-3 rounded-r-lg hover:bg-green-600 text-xs md:text-sm"
                         >
                           Save
                         </button>
@@ -334,34 +333,34 @@ export default function LedgerPage({ userId }) {
                   )}
                 </div>
                 {hasPaid && (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-2 md:mt-3 space-y-1.5 md:space-y-2">
                     {memberTransactions.map((t) => (
                       <div
                         key={t.id}
-                        className="flex justify-between items-center bg-white p-2 rounded-md"
+                        className="flex justify-between items-center bg-white p-2 rounded-md text-sm md:text-base"
                       >
                         {editingTransaction === t.id ? (
                           <>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">Amount:</span>
+                            <div className="flex items-center gap-1.5 md:gap-2">
+                              <span className="text-xs md:text-sm">Amount:</span>
                               <input
                                 type="number"
                                 value={editAmount}
                                 onChange={(e) => setEditAmount(e.target.value)}
-                                className="w-24 px-2 py-1 border rounded text-sm"
+                                className="w-20 md:w-24 px-1.5 md:px-2 py-1 border rounded text-xs md:text-sm"
                                 autoFocus
                               />
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1.5 md:gap-2">
                               <button
                                 onClick={() => handleUpdateTransaction(t.id)}
-                                className="text-xs bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded-md"
+                                className="text-xs bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 md:px-3 rounded-md"
                               >
                                 Save
                               </button>
                               <button
                                 onClick={handleCancelEdit}
-                                className="text-xs bg-gray-400 hover:bg-gray-500 text-white font-bold py-1 px-3 rounded-md"
+                                className="text-xs bg-gray-400 hover:bg-gray-500 text-white font-bold py-1 px-2 md:px-3 rounded-md"
                               >
                                 Cancel
                               </button>
@@ -369,13 +368,15 @@ export default function LedgerPage({ userId }) {
                           </>
                         ) : (
                           <>
-                            <span>Amount: ₹{t.amount.toLocaleString()}</span>
-                            <button
-                              onClick={() => handleStartEdit(t)}
-                              className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-md"
-                            >
-                              Update
-                            </button>
+                            <span className="text-xs md:text-sm">Amount: ₹{t.amount.toLocaleString()}</span>
+                            {t.amount > 0 && (
+                              <button
+                                onClick={() => handleStartEdit(t)}
+                                className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 md:px-3 rounded-md"
+                              >
+                                Update
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -386,12 +387,12 @@ export default function LedgerPage({ userId }) {
             );
           })}
           {displayedMembers.length === 0 && members.length > 0 && (
-            <p className="text-center py-4 text-gray-500">
+            <p className="text-center py-4 text-gray-500 text-sm md:text-base">
               No members found matching your search.
             </p>
           )}
           {members.length === 0 && (
-            <p className="text-center py-4 text-gray-500">
+            <p className="text-center py-4 text-gray-500 text-sm md:text-base">
               Add members on the 'Members' page to get started.
             </p>
           )}
