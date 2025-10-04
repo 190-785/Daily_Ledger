@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
 import {
   updateProfile,
   updateEmail,
@@ -7,10 +7,11 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from "firebase/auth";
+import { doc, updateDoc } from "firebase/firestore";
 
-export default function ProfilePage() {
+export default function ProfilePage({ userProfile }) {
   const user = auth.currentUser;
-  const [name, setName] = useState(user?.displayName || "");
+  const [name, setName] = useState(user?.displayName || userProfile?.displayName || "");
   const [email, setEmail] = useState(user?.email || "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -35,7 +36,16 @@ export default function ProfilePage() {
     setMessage({ type: "", text: "" });
 
     try {
+      // Update Firebase Auth profile
       await updateProfile(user, { displayName: name });
+      
+      // Update Firestore profile
+      const profileRef = doc(db, 'users', user.uid, 'profile', 'info');
+      await updateDoc(profileRef, {
+        displayName: name,
+        updatedAt: new Date()
+      });
+      
       setMessage({ type: "success", text: "Name updated successfully!" });
     } catch (error) {
       setMessage({ type: "error", text: error.message });
@@ -52,6 +62,14 @@ export default function ProfilePage() {
     try {
       await reauthenticate();
       await updateEmail(user, email);
+      
+      // Update Firestore profile
+      const profileRef = doc(db, 'users', user.uid, 'profile', 'info');
+      await updateDoc(profileRef, {
+        email: email,
+        updatedAt: new Date()
+      });
+      
       setMessage({
         type: "success",
         text: "Email updated successfully! Please verify your new email.",
@@ -101,6 +119,22 @@ export default function ProfilePage() {
   return (
     <div className="bg-white p-6 rounded-xl shadow-md max-w-2xl mx-auto">
       <h2 className="text-3xl font-bold mb-6">Profile Settings</h2>
+
+      {/* Username Display */}
+      {userProfile?.username && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold">
+              {userProfile.username.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 font-medium">Your Username</p>
+              <p className="text-xl font-bold text-gray-800">@{userProfile.username}</p>
+              <p className="text-xs text-gray-500 mt-1">Username cannot be changed</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {message.text && (
         <div

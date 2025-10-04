@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "./firebase";
+import { auth, getUserProfile } from "./firebase";
 
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
@@ -12,13 +13,34 @@ import ProfilePage from "./pages/ProfilePage";
 import Footer from "./components/Footer";
 
 export default function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
+  );
+}
+
+function AppContent() {
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isLoginPage, setIsLoginPage] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      
+      if (currentUser) {
+        // Fetch user profile including username
+        try {
+          const profile = await getUserProfile(currentUser.uid);
+          setUserProfile(profile);
+        } catch (error) {
+          console.error("Error fetching user profile:", error);
+        }
+      } else {
+        setUserProfile(null);
+      }
+      
       setLoading(false);
     });
     return () => unsubscribe();
@@ -33,46 +55,36 @@ export default function App() {
   }
 
   if (!user) {
-    return isLoginPage ? (
-      <LoginPage switchToSignup={() => setIsLoginPage(false)} />
-    ) : (
-      <SignupPage switchToLogin={() => setIsLoginPage(true)} />
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
     );
   }
 
-  return <MainApp user={user} />;
+  return <MainApp user={user} userProfile={userProfile} />;
 }
 
-const MainApp = ({ user }) => {
-  const [page, setPage] = useState("dashboard");
+const MainApp = ({ user, userProfile }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
-    signOut(auth).catch((error) => console.error("Logout failed:", error));
+    signOut(auth)
+      .then(() => navigate("/login"))
+      .catch((error) => console.error("Logout failed:", error));
   };
 
-  const renderPage = () => {
-    switch (page) {
-      case "dashboard":
-        return <DashboardPage userId={user.uid} />;
-      case "ledger":
-        return <LedgerPage userId={user.uid} />;
-      case "members":
-        return <MembersPage userId={user.uid} />;
-      case "monthly":
-        return <MonthlyViewPage userId={user.uid} />;
-      case "profile":
-        return <ProfilePage />;
-      default:
-        return <DashboardPage userId={user.uid} />;
-    }
-  };
+  const isActive = (path) => location.pathname === path;
 
   return (
     <div className="bg-gray-100 min-h-screen font-sans text-gray-800 flex flex-col">
       <nav className="bg-gradient-to-r from-blue-600 to-blue-800 shadow-lg sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex justify-between items-center py-3">
-            <div className="flex items-center gap-3">
+            <Link to="/dashboard" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
               <div className="bg-white p-2 rounded-lg">
                 <svg
                   className="w-6 h-6 text-blue-600"
@@ -94,61 +106,61 @@ const MainApp = ({ user }) => {
                   Collection Tracker
                 </h1>
                 <p className="text-xs text-blue-200 hidden md:block">
-                  Daily Payment Management System
+                  {userProfile?.username ? `@${userProfile.username}` : 'Daily Payment Management System'}
                 </p>
               </div>
-            </div>
+            </Link>
             <div className="hidden md:flex items-center space-x-1">
-              <button
-                onClick={() => setPage("dashboard")}
+              <Link
+                to="/dashboard"
                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  page === "dashboard"
+                  isActive("/dashboard") || isActive("/")
                     ? "bg-white text-blue-700 shadow-md"
                     : "text-white hover:bg-blue-700"
                 }`}
               >
                 📊 Dashboard
-              </button>
-              <button
-                onClick={() => setPage("ledger")}
+              </Link>
+              <Link
+                to="/ledger"
                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  page === "ledger"
+                  isActive("/ledger")
                     ? "bg-white text-blue-700 shadow-md"
                     : "text-white hover:bg-blue-700"
                 }`}
               >
                 📝 Daily Ledger
-              </button>
-              <button
-                onClick={() => setPage("members")}
+              </Link>
+              <Link
+                to="/members"
                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  page === "members"
+                  isActive("/members")
                     ? "bg-white text-blue-700 shadow-md"
                     : "text-white hover:bg-blue-700"
                 }`}
               >
                 👥 Members
-              </button>
-              <button
-                onClick={() => setPage("monthly")}
+              </Link>
+              <Link
+                to="/monthly"
                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  page === "monthly"
+                  isActive("/monthly")
                     ? "bg-white text-blue-700 shadow-md"
                     : "text-white hover:bg-blue-700"
                 }`}
               >
                 📅 Monthly View
-              </button>
-              <button
-                onClick={() => setPage("profile")}
+              </Link>
+              <Link
+                to="/profile"
                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  page === "profile"
+                  isActive("/profile")
                     ? "bg-white text-blue-700 shadow-md"
                     : "text-white hover:bg-blue-700"
                 }`}
               >
                 👤 Profile
-              </button>
+              </Link>
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 rounded-lg font-semibold bg-red-500 text-white hover:bg-red-600 transition-all shadow-md ml-2"
@@ -158,15 +170,15 @@ const MainApp = ({ user }) => {
             </div>
             <div className="md:hidden flex items-center">
               <select
-                onChange={(e) => setPage(e.target.value)}
-                value={page}
+                onChange={(e) => navigate(e.target.value)}
+                value={location.pathname}
                 className="bg-white border-2 border-blue-300 text-blue-800 text-sm font-semibold rounded-lg p-2.5"
               >
-                <option value="dashboard">📊 Dashboard</option>
-                <option value="ledger">📝 Ledger</option>
-                <option value="members">👥 Members</option>
-                <option value="monthly">📅 Monthly</option>
-                <option value="profile">👤 Profile</option>
+                <option value="/dashboard">📊 Dashboard</option>
+                <option value="/ledger">📝 Ledger</option>
+                <option value="/members">👥 Members</option>
+                <option value="/monthly">📅 Monthly</option>
+                <option value="/profile">👤 Profile</option>
               </select>
               <button
                 onClick={handleLogout}
@@ -179,7 +191,15 @@ const MainApp = ({ user }) => {
         </div>
       </nav>
       <main className="flex-grow p-4 md:p-6 max-w-6xl mx-auto w-full">
-        {renderPage()}
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage userId={user.uid} />} />
+          <Route path="/ledger" element={<LedgerPage userId={user.uid} />} />
+          <Route path="/members" element={<MembersPage userId={user.uid} />} />
+          <Route path="/monthly" element={<MonthlyViewPage userId={user.uid} />} />
+          <Route path="/profile" element={<ProfilePage userProfile={userProfile} />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </main>
       <Footer />
     </div>

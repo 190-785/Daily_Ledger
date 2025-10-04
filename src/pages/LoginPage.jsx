@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
 
@@ -21,30 +22,35 @@ const AuthForm = ({ title, buttonText, onSubmit, children }) => (
   </div>
 );
 
-export default function LoginPage({ switchToSignup }) {
+export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (err) {
-      setError(err.message);
+      // User will be automatically redirected by App.jsx
+    } catch (error) {
+      setError(error.message);
+      setLoading(false);
     }
   };
 
   return (
-    <AuthForm title="Login" buttonText="Log In" onSubmit={handleLogin}>
+    <AuthForm title="Login" buttonText={loading ? "Logging in..." : "Log In"} onSubmit={handleLogin}>
       <input
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="Email"
         required
-        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
+        disabled={loading}
+        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
       />
       <input
         type="password"
@@ -52,18 +58,19 @@ export default function LoginPage({ switchToSignup }) {
         onChange={(e) => setPassword(e.target.value)}
         placeholder="Password"
         required
-        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
+        disabled={loading}
+        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
       />
-      {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-      <p className="text-center text-sm">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+          {error}
+        </div>
+      )}
+      <p className="text-center text-sm text-gray-600">
         Don't have an account?{" "}
-        <button
-          type="button"
-          onClick={switchToSignup}
-          className="text-blue-600 hover:underline"
-        >
+        <Link to="/signup" className="text-blue-600 hover:underline font-medium">
           Sign Up
-        </button>
+        </Link>
       </p>
     </AuthForm>
   );
