@@ -2,6 +2,11 @@ import React, { useState, useEffect, useCallback } from "react";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { updateDailyStats, updateMonthlyStats } from "../utils/statsCalculator";
+import Card, { CardHeader, CardTitle, CardContent } from "../components/Card";
+import { Heading, Text, Badge } from "../components/Typography";
+import Button from "../components/Button";
+import LoadingSpinner, { EmptyState } from "../components/LoadingSpinner";
+import { FadeIn, Stagger } from "../components/Animations";
 
 const getMonthYear = (date = new Date()) => date.toISOString().slice(0, 7);
 const getTodayDate = () => new Date().toISOString().split("T")[0];
@@ -142,83 +147,92 @@ export default function DashboardPage({ userId }) {
   }, [viewTab, selectedDate, selectedMonth, calculateDailyStats, calculateMonthlyStats]);
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-md">
-      <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-        <h2 className="text-3xl font-bold">Dashboard</h2>
-        <div className="flex gap-2">
-          {viewTab === "daily" && (
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-gray-50 border-gray-300 text-gray-900 rounded-lg p-2"
-            />
-          )}
-          {viewTab === "monthly" && (
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-gray-50 border-gray-300 text-gray-900 rounded-lg p-2"
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-lg">
-        <button
-          onClick={() => setViewTab("daily")}
-          className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-            viewTab === "daily"
-              ? "bg-blue-600 text-white shadow-md"
-              : "bg-transparent text-gray-600 hover:bg-gray-200"
-          }`}
-        >
-          📅 Daily View
-        </button>
-        <button
-          onClick={() => setViewTab("monthly")}
-          className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-            viewTab === "monthly"
-              ? "bg-blue-600 text-white shadow-md"
-              : "bg-transparent text-gray-600 hover:bg-gray-200"
-          }`}
-        >
-          📊 Monthly View
-        </button>
-      </div>
-      {loading ? (
-        <p className="text-center py-8">Calculating stats...</p>
-      ) : viewTab === "daily" ? (
-        <>
-          {/* Daily Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-blue-100 p-4 rounded-lg text-center">
-              <h3 className="text-sm font-semibold text-blue-800">
-                Total Members
-              </h3>
-              <p className="text-3xl font-bold text-blue-900 mt-2">
-                {dailyStats.totalMembers}
-              </p>
-            </div>
-            <div className="bg-green-100 p-4 rounded-lg text-center">
-              <h3 className="text-sm font-semibold text-green-800">
-                Collected on {selectedDate}
-              </h3>
-              <p className="text-3xl font-bold text-green-900 mt-2">
-                ₹{dailyStats.totalCollected.toLocaleString()}
-              </p>
-            </div>
-            <div className="bg-orange-100 p-4 rounded-lg text-center">
-              <h3 className="text-sm font-semibold text-orange-800">
-                Didn't Pay
-              </h3>
-              <p className="text-3xl font-bold text-orange-900 mt-2">
-                {dailyStats.pendingToday.length}
-              </p>
+    <FadeIn>
+      <Card variant="elevated" className="p-6">
+        <CardHeader>
+          <div className="flex flex-wrap justify-between items-center gap-4">
+            <Heading level="h2">Dashboard</Heading>
+            <div className="flex gap-2">
+              {viewTab === "daily" && (
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              )}
+              {viewTab === "monthly" && (
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              )}
             </div>
           </div>
+        </CardHeader>
+
+        <CardContent>
+          {/* Tab Navigation */}
+          <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-lg">
+            <Button
+              onClick={() => setViewTab("daily")}
+              variant={viewTab === "daily" ? "primary" : "ghost"}
+              fullWidth
+            >
+              📅 Daily View
+            </Button>
+            <Button
+              onClick={() => setViewTab("monthly")}
+              variant={viewTab === "monthly" ? "primary" : "ghost"}
+              fullWidth
+            >
+              📊 Monthly View
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner size="lg" text="Calculating stats..." />
+            </div>
+          ) : viewTab === "daily" ? (
+        <>
+          {/* Daily Stats */}
+          <Stagger staggerDelay={100}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                <CardContent className="text-center p-4">
+                  <Text size="sm" weight="semibold" className="text-blue-800">
+                    Total Members
+                  </Text>
+                  <Heading level="h2" className="text-blue-900 mt-2">
+                    {dailyStats.totalMembers}
+                  </Heading>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                <CardContent className="text-center p-4">
+                  <Text size="sm" weight="semibold" className="text-green-800">
+                    Collected on {selectedDate}
+                  </Text>
+                  <Heading level="h2" className="text-green-900 mt-2">
+                    ₹{dailyStats.totalCollected.toLocaleString()}
+                  </Heading>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+                <CardContent className="text-center p-4">
+                  <Text size="sm" weight="semibold" className="text-orange-800">
+                    Didn't Pay
+                  </Text>
+                  <Heading level="h2" className="text-orange-900 mt-2">
+                    {dailyStats.pendingToday.length}
+                  </Heading>
+                </CardContent>
+              </Card>
+            </div>
+          </Stagger>
 
           {/* Payment Status for Selected Date */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -494,6 +508,8 @@ export default function DashboardPage({ userId }) {
           </div>
         </>
       )}
-    </div>
+        </CardContent>
+      </Card>
+    </FadeIn>
   );
 }

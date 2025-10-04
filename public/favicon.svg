@@ -1,14 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <circle cx="50" cy="50" r="50" fill="#2563EB"/>
-  <text 
-    x="50" 
-    y="52" 
-    font-family="Arial, sans-serif" 
-    font-size="60" 
-    font-weight="bold" 
-    fill="white" 
-    text-anchor="middle" 
-    dominant-baseline="middle">
-    ₹
-  </text>
+  <!-- Main calendar page shape -->
+  <rect x="10" y="10" width="80" height="80" rx="15" fill="#FFFFFF"/>
+  
+  <!-- Green header bar (was Blue) -->
+  <path d="M 10 25 C 10 16.716 16.716 10 25 10 H 75 C 83.284 10 90 16.716 90 25 V 35 H 10 Z" fill="#16A34A"/>
+  
+  <!-- Calendar rings -->
+  <circle cx="30" cy="18" r="5" fill="#FFFFFF"/>
+  <circle cx="70" cy="18" r="5" fill="#FFFFFF"/>
+  
+  <!-- Green Checkmark -->
+  <path 
+    d="M 30 55 L 45 70 L 75 40" 
+    fill="none" 
+    stroke="#10B981" 
+    stroke-width="15" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+  />
 </svg>
+

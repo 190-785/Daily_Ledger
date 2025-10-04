@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 /**
  * Animations Configuration
@@ -9,12 +9,12 @@ import React from 'react';
  * FadeIn Component
  * Fade in animation wrapper
  */
-export function FadeIn({ 
-  children, 
-  duration = 300, 
+export function FadeIn({
+  children,
+  duration = 300,
   delay = 0,
-  className = '',
-  ...props 
+  className = "",
+  ...props
 }) {
   return (
     <div
@@ -22,7 +22,7 @@ export function FadeIn({
       style={{
         animationDuration: `${duration}ms`,
         animationDelay: `${delay}ms`,
-        animationFillMode: 'both'
+        animationFillMode: "both",
       }}
       {...props}
     >
@@ -35,19 +35,19 @@ export function FadeIn({
  * SlideIn Component
  * Slide in animation from different directions
  */
-export function SlideIn({ 
-  children, 
-  direction = 'up',
+export function SlideIn({
+  children,
+  direction = "up",
   duration = 300,
   delay = 0,
-  className = '',
-  ...props 
+  className = "",
+  ...props
 }) {
   const animations = {
-    up: 'animate-slideInUp',
-    down: 'animate-slideInDown',
-    left: 'animate-slideInLeft',
-    right: 'animate-slideInRight'
+    up: "animate-slideInUp",
+    down: "animate-slideInDown",
+    left: "animate-slideInLeft",
+    right: "animate-slideInRight",
   };
 
   return (
@@ -56,7 +56,7 @@ export function SlideIn({
       style={{
         animationDuration: `${duration}ms`,
         animationDelay: `${delay}ms`,
-        animationFillMode: 'both'
+        animationFillMode: "both",
       }}
       {...props}
     >
@@ -69,12 +69,12 @@ export function SlideIn({
  * ScaleIn Component
  * Scale in animation
  */
-export function ScaleIn({ 
-  children, 
+export function ScaleIn({
+  children,
   duration = 200,
   delay = 0,
-  className = '',
-  ...props 
+  className = "",
+  ...props
 }) {
   return (
     <div
@@ -82,7 +82,7 @@ export function ScaleIn({
       style={{
         animationDuration: `${duration}ms`,
         animationDelay: `${delay}ms`,
-        animationFillMode: 'both'
+        animationFillMode: "both",
       }}
       {...props}
     >
@@ -95,11 +95,11 @@ export function ScaleIn({
  * Stagger Component
  * Stagger children animations
  */
-export function Stagger({ 
-  children, 
+export function Stagger({
+  children,
   staggerDelay = 50,
-  className = '',
-  ...props 
+  className = "",
+  ...props
 }) {
   return (
     <div className={className} {...props}>
@@ -108,7 +108,7 @@ export function Stagger({
           className="animate-fadeIn"
           style={{
             animationDelay: `${index * staggerDelay}ms`,
-            animationFillMode: 'both'
+            animationFillMode: "both",
           }}
         >
           {child}
@@ -122,21 +122,21 @@ export function Stagger({
  * Collapse Component
  * Smooth height collapse/expand
  */
-export function Collapse({ 
-  isOpen, 
+export function Collapse({
+  isOpen,
   children,
   duration = 300,
-  className = '',
-  ...props 
+  className = "",
+  ...props
 }) {
-  const [height, setHeight] = React.useState(isOpen ? 'auto' : 0);
+  const [height, setHeight] = React.useState(isOpen ? "auto" : 0);
   const contentRef = React.useRef(null);
 
   React.useEffect(() => {
     if (isOpen) {
       const contentHeight = contentRef.current?.scrollHeight;
       setHeight(contentHeight);
-      setTimeout(() => setHeight('auto'), duration);
+      setTimeout(() => setHeight("auto"), duration);
     } else {
       const contentHeight = contentRef.current?.scrollHeight;
       setHeight(contentHeight);
@@ -151,7 +151,7 @@ export function Collapse({
       style={{
         height,
         transitionDuration: `${duration}ms`,
-        transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
+        transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
       }}
       {...props}
     >
@@ -164,13 +164,13 @@ export function Collapse({
  * Modal Animations
  * Smooth modal entrance/exit
  */
-export function ModalBackdrop({ show, children, onClick, className = '' }) {
+export function ModalBackdrop({ show, children, onClick, className = "" }) {
   if (!show) return null;
 
   return (
     <div
       className={`fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 animate-fadeIn ${className}`}
-      style={{ animationDuration: '200ms' }}
+      style={{ animationDuration: "200ms" }}
       onClick={onClick}
     >
       {children}
@@ -178,11 +178,11 @@ export function ModalBackdrop({ show, children, onClick, className = '' }) {
   );
 }
 
-export function ModalContent({ children, className = '', ...props }) {
+export function ModalContent({ children, className = "", ...props }) {
   return (
     <div
       className={`bg-white rounded-lg shadow-2xl animate-scaleIn ${className}`}
-      style={{ animationDuration: '300ms' }}
+      style={{ animationDuration: "300ms" }}
       onClick={(e) => e.stopPropagation()}
       {...props}
     >
@@ -195,7 +195,7 @@ export function ModalContent({ children, className = '', ...props }) {
  * Ripple Effect Component
  * Material Design ripple effect for buttons
  */
-export function Ripple({ children, className = '', ...props }) {
+export function Ripple({ children, className = "", ...props }) {
   const [ripples, setRipples] = React.useState([]);
 
   const addRipple = (event) => {
@@ -226,7 +226,7 @@ export function Ripple({ children, className = '', ...props }) {
             left: ripple.x,
             top: ripple.y,
             width: ripple.size,
-            height: ripple.size
+            height: ripple.size,
           }}
         />
       ))}
@@ -238,28 +238,28 @@ export function Ripple({ children, className = '', ...props }) {
  * Toast Animation Component
  * Smooth toast notification entrance
  */
-export function Toast({ 
-  show, 
-  children, 
-  position = 'top-right',
-  className = '',
-  ...props 
+export function Toast({
+  show,
+  children,
+  position = "top-right",
+  className = "",
+  ...props
 }) {
   if (!show) return null;
 
   const positions = {
-    'top-right': 'top-4 right-4 animate-slideInRight',
-    'top-left': 'top-4 left-4 animate-slideInLeft',
-    'bottom-right': 'bottom-4 right-4 animate-slideInRight',
-    'bottom-left': 'bottom-4 left-4 animate-slideInLeft',
-    'top-center': 'top-4 left-1/2 -translate-x-1/2 animate-slideInDown',
-    'bottom-center': 'bottom-4 left-1/2 -translate-x-1/2 animate-slideInUp'
+    "top-right": "top-4 right-4 animate-slideInRight",
+    "top-left": "top-4 left-4 animate-slideInLeft",
+    "bottom-right": "bottom-4 right-4 animate-slideInRight",
+    "bottom-left": "bottom-4 left-4 animate-slideInLeft",
+    "top-center": "top-4 left-1/2 -translate-x-1/2 animate-slideInDown",
+    "bottom-center": "bottom-4 left-1/2 -translate-x-1/2 animate-slideInUp",
   };
 
   return (
     <div
       className={`fixed z-50 ${positions[position]} ${className}`}
-      style={{ animationDuration: '300ms' }}
+      style={{ animationDuration: "300ms" }}
       {...props}
     >
       {children}
@@ -271,7 +271,7 @@ export function Toast({
  * Pulse Component
  * Continuous pulse animation
  */
-export function Pulse({ children, className = '', ...props }) {
+export function Pulse({ children, className = "", ...props }) {
   return (
     <div className={`animate-pulse ${className}`} {...props}>
       {children}
@@ -283,7 +283,7 @@ export function Pulse({ children, className = '', ...props }) {
  * Bounce Component
  * Bounce animation
  */
-export function Bounce({ children, className = '', ...props }) {
+export function Bounce({ children, className = "", ...props }) {
   return (
     <div className={`animate-bounce ${className}`} {...props}>
       {children}
@@ -295,11 +295,11 @@ export function Bounce({ children, className = '', ...props }) {
  * Spin Component
  * Continuous spin animation
  */
-export function Spin({ children, speed = 'normal', className = '', ...props }) {
+export function Spin({ children, speed = "normal", className = "", ...props }) {
   const speeds = {
-    slow: 'animate-spin-slow',
-    normal: 'animate-spin',
-    fast: 'animate-spin-fast'
+    slow: "animate-spin-slow",
+    normal: "animate-spin",
+    fast: "animate-spin-fast",
   };
 
   return (

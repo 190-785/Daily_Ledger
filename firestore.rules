@@ -1,0 +1,148 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isValidString(text, minLen, maxLen) {
+      return text is string && 
+             text.size() >= minLen && 
+             text.size() <= maxLen;
+    }
+    
+    function isValidEmail(email) {
+      return email is string && 
+             email.matches('.*@.*\\..*');
+    }
+    
+    function hasValidTimestamp(data) {
+      return data.createdAt is timestamp &&
+             data.createdAt == request.time;
+    }
+    
+    // Username mappings (public read, owner write)
+    match /usernames/{username} {
+      allow read: if true; // Public read for username lookups
+      allow create: if isSignedIn() && 
+                      isValidString(username, 3, 20) &&
+                      username.matches('[a-z0-9_]+') &&
+                      request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false; // Usernames are immutable
+    }
+    
+    // User profiles
+    match /users/{userId} {
+      // Public read for basic profile data (for sharing features)
+      allow read: if isSignedIn();
+      
+      // Users can only create/update their own profile
+      allow create: if isOwner(userId) &&
+                      isValidString(request.resource.data.username, 3, 20) &&
+                      isValidString(request.resource.data.displayName, 1, 100) &&
+                      isValidEmail(request.resource.data.email) &&
+                      hasValidTimestamp(request.resource.data);
+                      
+      allow update: if isOwner(userId) &&
+                      request.resource.data.username == resource.data.username && // Username immutable
+                      isValidString(request.resource.data.displayName, 1, 100);
+      
+      allow delete: if isOwner(userId);
+      
+      // User's members
+      match /members/{memberId} {
+        allow read, write: if isOwner(userId);
+        
+        allow create: if isOwner(userId) &&
+                        isValidString(request.resource.data.name, 1, 100) &&
+                        request.resource.data.setAmount is number &&
+                        request.resource.data.setAmount >= 0 &&
+                        request.resource.data.rank is number;
+                        
+        allow update: if isOwner(userId) &&
+                        isValidString(request.resource.data.name, 1, 100) &&
+                        request.resource.data.setAmount is number &&
+                        request.resource.data.setAmount >= 0;
+      }
+      
+      // User's transactions
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId);
+        
+        allow create: if isOwner(userId) &&
+                        request.resource.data.amount is number &&
+                        request.resource.data.amount >= 0 &&
+                        isValidString(request.resource.data.memberName, 1, 100) &&
+                        request.resource.data.date is string &&
+                        request.resource.data.timestamp is timestamp;
+                        
+        allow update, delete: if isOwner(userId);
+      }
+      
+      // User's lists
+      match /lists/{listId} {
+        // Owner can always read/write
+        allow read, write: if isOwner(userId);
+        
+        // Shared users can read based on permissions
+        allow read: if isSignedIn() && 
+                      request.auth.uid in resource.data.sharedWith.keys();
+        
+        // Create validation
+        allow create: if isOwner(userId) &&
+                        isValidString(request.resource.data.name, 1, 100) &&
+                        request.resource.data.memberIds is list &&
+                        request.resource.data.sharedWith is map &&
+                        hasValidTimestamp(request.resource.data);
+        
+        // Update validation
+        allow update: if isOwner(userId) &&
+                        isValidString(request.resource.data.name, 1, 100) &&
+                        request.resource.data.memberIds is list;
+        
+        // Access control documents
+        match /access/{accessId} {
+          allow read: if isOwner(userId) || 
+                        (isSignedIn() && accessId == request.auth.uid);
+          allow write: if isOwner(userId);
+        }
+      }
+      
+      // Daily stats cache
+      match /daily_stats/{date} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId);
+      }
+      
+      // Monthly stats cache
+      match /monthly_stats/{monthYear} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId);
+      }
+      
+      // Settings
+      match /settings/{settingId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+    
+    // Shared lists (read-only access for shared users)
+    match /shared_lists/{listId} {
+      allow read: if isSignedIn() && 
+                    request.auth.uid in resource.data.sharedWith.keys();
+      allow write: if false; // Only owners can write through /users/{userId}/lists
+    }
+    
+    // Block all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
