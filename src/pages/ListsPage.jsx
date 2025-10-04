@@ -142,18 +142,19 @@ export default function ListsPage({ userId }) {
 
   return (
     <FadeIn>
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-6 flex flex-wrap justify-between items-center gap-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
             <Heading level="h1" className="flex items-center gap-2">
               📋 My Lists
             </Heading>
-            <Text variant="muted" className="mt-1">Organize and share your member lists</Text>
+            <Text variant="muted" className="mt-2">Organize and share your member lists</Text>
           </div>
           <Button
             onClick={() => setShowCreateModal(true)}
             variant="primary"
             size="lg"
+            className="w-full sm:w-auto"
           >
             <span className="text-xl mr-2">+</span>
             Create New List
@@ -161,8 +162,8 @@ export default function ListsPage({ userId }) {
         </div>
 
         {/* My Lists Section */}
-        <div className="mb-10">
-          <Heading level="h3" className="mb-4 flex items-center gap-2">
+        <div className="mb-12">
+          <Heading level="h3" className="mb-5 flex items-center gap-2">
             <span>📁</span>
             My Lists ({myLists.length})
           </Heading>
@@ -179,56 +180,56 @@ export default function ListsPage({ userId }) {
               action={() => setShowCreateModal(true)}
               actionLabel="Create Your First List"
             />
-        ) : (
-          <Stagger staggerDelay={80}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {myLists.map((list) => (
-              <ListCard
-                key={list.id}
-                list={list}
-                onEdit={handleEdit}
-                onDelete={handleDeleteList}
-                onShare={handleShare}
-                onManageAccess={handleManageAccess}
-              />
-            ))}
-            </div>
-          </Stagger>
-        )}
-      </div>
+          ) : (
+            <Stagger staggerDelay={80}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {myLists.map((list) => (
+                  <ListCard
+                    key={list.id}
+                    list={list}
+                    onEdit={handleEdit}
+                    onDelete={handleDeleteList}
+                    onShare={handleShare}
+                    onManageAccess={handleManageAccess}
+                  />
+                ))}
+              </div>
+            </Stagger>
+          )}
+        </div>
 
-      {/* Shared With Me Section */}
-      <div>
-        <Heading level="h3" className="mb-4 flex items-center gap-2">
-          <span>🔗</span>
-          Shared With Me ({sharedLists.length})
-        </Heading>
+        {/* Shared With Me Section */}
+        <div>
+          <Heading level="h3" className="mb-5 flex items-center gap-2">
+            <span>🔗</span>
+            Shared With Me ({sharedLists.length})
+          </Heading>
         
-        {sharedLists.length === 0 ? (
-          <EmptyState
-            icon={
-              <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-            }
-            title="No Shared Lists"
-            description="No lists have been shared with you yet"
-          />
-        ) : (
-          <Stagger staggerDelay={80}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sharedLists.map((list) => (
-                <ListCard
-                  key={list.id}
-                  list={list}
-                  isShared={true}
-                  onClick={handleSharedListClick}
-                />
-              ))}
-            </div>
-          </Stagger>
-        )}
-      </div>
+          {sharedLists.length === 0 ? (
+            <EmptyState
+              icon={
+                <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              }
+              title="No Shared Lists"
+              description="No lists have been shared with you yet"
+            />
+          ) : (
+            <Stagger staggerDelay={80}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {sharedLists.map((list) => (
+                  <ListCard
+                    key={list.id}
+                    list={list}
+                    isShared={true}
+                    onClick={handleSharedListClick}
+                  />
+                ))}
+              </div>
+            </Stagger>
+          )}
+        </div>
 
       {/* Create/Edit Modal */}
       <CreateListModal

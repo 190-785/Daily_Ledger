@@ -107,16 +107,16 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex flex-col justify-center items-center p-4">
       <FadeIn duration={400}>
-        <Card variant="elevated" className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-center">Create Your Account</CardTitle>
-            <Text size="sm" variant="muted" className="text-center mt-2">
+        <Card variant="elevated" className="w-full max-w-lg p-2">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-center text-3xl">Create Your Account</CardTitle>
+            <Text size="base" variant="muted" className="text-center mt-3">
               Join Daily Ledger to track your finances
             </Text>
           </CardHeader>
           
-          <CardContent>
-            <form onSubmit={handleSignup} className="space-y-5">
+          <CardContent className="pt-2">
+            <form onSubmit={handleSignup} className="space-y-6">
               <Input
                 type="text"
                 label="Full Name"

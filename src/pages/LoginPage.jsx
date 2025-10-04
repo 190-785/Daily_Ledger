@@ -30,16 +30,16 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col justify-center items-center p-4">
       <FadeIn duration={400}>
-        <Card variant="elevated" className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-center">Welcome Back</CardTitle>
-            <Text size="sm" variant="muted" className="text-center mt-2">
+        <Card variant="elevated" className="w-full max-w-lg p-2">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-center text-3xl">Welcome Back</CardTitle>
+            <Text size="base" variant="muted" className="text-center mt-3">
               Sign in to your Daily Ledger account
             </Text>
           </CardHeader>
           
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-5">
+          <CardContent className="pt-2">
+            <form onSubmit={handleLogin} className="space-y-6">
               <Input
                 type="email"
                 label="Email"

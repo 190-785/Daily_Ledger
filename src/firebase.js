@@ -11,7 +11,8 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc,
-  orderBy
+  orderBy,
+  serverTimestamp
 } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -64,7 +65,7 @@ export const createUsernameMapping = async (username, userId) => {
   try {
     await setDoc(doc(db, 'usernames', username.toLowerCase()), {
       userId: userId,
-      createdAt: new Date()
+      createdAt: serverTimestamp()
     });
   } catch (error) {
     console.error('Error creating username mapping:', error);
