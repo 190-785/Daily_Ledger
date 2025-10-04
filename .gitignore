@@ -1,4 +1,27 @@
+# ═══════════════════════════════════════════════════════════
+# DAILY LEDGER - .gitignore
+# ═══════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────
+# Dependencies
+# ───────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+jspm_packages/
+
+# ───────────────────────────────────────────────────────────
+# Build Outputs
+# ───────────────────────────────────────────────────────────
+dist/
+dist-ssr/
+build/
+.vite/
+*.local
+
+# ───────────────────────────────────────────────────────────
 # Logs
+# ───────────────────────────────────────────────────────────
 logs
 *.log
 npm-debug.log*
@@ -7,18 +30,173 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# ───────────────────────────────────────────────────────────
+# Environment Variables (IMPORTANT - Keep Firebase keys safe!)
+# ───────────────────────────────────────────────────────────
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
 
-# Editor directories and files
+# Note: Firebase config in src/firebase.js is safe to commit
+# API keys are public by design and protected by domain restrictions
+
+# ───────────────────────────────────────────────────────────
+# IDE & Editor Files
+# ───────────────────────────────────────────────────────────
+
+# VSCode
 .vscode/*
 !.vscode/extensions.json
-.idea
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# WebStorm / IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ───────────────────────────────────────────────────────────
+# Operating System Files
+# ───────────────────────────────────────────────────────────
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Linux
+.directory
+.Trash-*
+
+# ───────────────────────────────────────────────────────────
+# Testing & Coverage
+# ───────────────────────────────────────────────────────────
+coverage/
+*.coverage
+.nyc_output/
+.jest/
+test-results/
+playwright-report/
+
+# ───────────────────────────────────────────────────────────
+# Firebase
+# ───────────────────────────────────────────────────────────
+.firebase/
+.firebaserc
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+firestore-debug.*.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+functions/.runtimeconfig.json
+
+# Note: firestore.rules should be committed (it's public anyway)
+
+# ───────────────────────────────────────────────────────────
+# Vercel
+# ───────────────────────────────────────────────────────────
+.vercel
+
+# Note: vercel.json should be committed (deployment configuration)
+
+# ───────────────────────────────────────────────────────────
+# Temporary & Cache Files
+# ───────────────────────────────────────────────────────────
+*.tmp
+*.temp
+*.cache
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.turbo/
+.eslintcache
+.stylelintcache
+
+# ───────────────────────────────────────────────────────────
+# Documentation (Generated/Temporary)
+# ───────────────────────────────────────────────────────────
+# Keep: README.md, CODE_AUDIT_REPORT.md, PRODUCTION_DEPLOY_GUIDE.md
+# Keep: VERCEL_FIREBASE_GUIDE.md, FIREBASE_RULES_FINAL.md
+
+# Uncomment if you generate docs
+# docs/.vitepress/dist/
+# docs/.vitepress/cache/
+
+# ───────────────────────────────────────────────────────────
+# Package Manager Lock Files (Optional - choose one)
+# ───────────────────────────────────────────────────────────
+# Uncomment to ignore lock files (not recommended for production)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ───────────────────────────────────────────────────────────
+# Misc
+# ───────────────────────────────────────────────────────────
+*.seed
+*.pid
+*.pid.lock
+*.tgz
+.npm
+.yarn-integrity
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ───────────────────────────────────────────────────────────
+# Security & Sensitive Data
+# ───────────────────────────────────────────────────────────
+# Add any files with sensitive data here
+# service-account-key.json
+# private-key.pem
+# *.key
+# *.cert
+# *.crt
