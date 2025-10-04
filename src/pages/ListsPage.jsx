@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { collection, query, orderBy as firestoreOrderBy, getDocs } from "firebase/firestore";
 import { db, getUserLists, getSharedLists, createList, updateList, deleteList, shareListWithUser } from "../firebase";
 import ListCard from "../components/ListCard";
 import CreateListModal from "../components/CreateListModal";
 import ShareListModal from "../components/ShareListModal";
+import ManageAccessModal from "../components/ManageAccessModal";
 
 export default function ListsPage({ userId }) {
+  const navigate = useNavigate();
   const [myLists, setMyLists] = useState([]);
   const [sharedLists, setSharedLists] = useState([]);
   const [members, setMembers] = useState([]);
@@ -14,6 +17,7 @@ export default function ListsPage({ userId }) {
   const [editingList, setEditingList] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [sharingList, setSharingList] = useState(null);
+  const [managingAccessList, setManagingAccessList] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -116,6 +120,14 @@ export default function ListsPage({ userId }) {
     }
   };
 
+  const handleManageAccess = (list) => {
+    setManagingAccessList(list);
+  };
+
+  const handleSharedListClick = (list) => {
+    navigate(`/lists/shared/${list.id}`);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -170,6 +182,7 @@ export default function ListsPage({ userId }) {
                 onEdit={handleEdit}
                 onDelete={handleDeleteList}
                 onShare={handleShare}
+                onManageAccess={handleManageAccess}
               />
             ))}
           </div>
@@ -195,6 +208,7 @@ export default function ListsPage({ userId }) {
                 key={list.id}
                 list={list}
                 isShared={true}
+                onClick={handleSharedListClick}
               />
             ))}
           </div>
@@ -217,6 +231,15 @@ export default function ListsPage({ userId }) {
         list={sharingList}
         onShare={handleShareSubmit}
       />
+
+      {/* Manage Access Modal */}
+      {managingAccessList && (
+        <ManageAccessModal
+          list={managingAccessList}
+          onClose={() => setManagingAccessList(null)}
+          onAccessRevoked={fetchData}
+        />
+      )}
 
       {/* Delete Confirmation */}
       {deleteConfirm && (

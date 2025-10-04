@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
-export default function ListCard({ list, onEdit, onDelete, onShare, isShared = false }) {
+export default function ListCard({ list, onEdit, onDelete, onShare, onManageAccess, onClick, isShared = false }) {
   const memberCount = list.memberIds?.length || 0;
   const sharedCount = list.sharedWith?.length || 0;
   const shareType = list.shareSettings?.type || 'dynamic';
@@ -13,7 +13,12 @@ export default function ListCard({ list, onEdit, onDelete, onShare, isShared = f
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow p-5">
+    <div 
+      className={`bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow p-5 ${
+        isShared ? 'cursor-pointer hover:border-blue-400' : ''
+      }`}
+      onClick={isShared ? () => onClick?.(list) : undefined}
+    >
       <div className="flex justify-between items-start mb-3">
         <div className="flex-1">
           <h3 className="text-lg font-bold text-gray-800 mb-1">{list.name}</h3>
@@ -23,6 +28,15 @@ export default function ListCard({ list, onEdit, onDelete, onShare, isShared = f
         </div>
         {!isShared && (
           <div className="flex gap-2">
+            {sharedCount > 0 && (
+              <button
+                onClick={() => onManageAccess(list)}
+                className="text-purple-600 hover:text-purple-800 text-sm font-medium px-3 py-1 rounded hover:bg-purple-50"
+                title="Manage who has access"
+              >
+                👥 Manage
+              </button>
+            )}
             <button
               onClick={() => onShare(list)}
               className="text-green-600 hover:text-green-800 text-sm font-medium px-3 py-1 rounded hover:bg-green-50"

@@ -11,6 +11,7 @@ import MembersPage from "./pages/MembersPage";
 import MonthlyViewPage from "./pages/MonthlyViewPage";
 import ProfilePage from "./pages/ProfilePage";
 import ListsPage from "./pages/ListsPage";
+import SharedListViewPage from "./pages/SharedListViewPage";
 import Footer from "./components/Footer";
 
 export default function App() {
@@ -210,6 +211,7 @@ const MainApp = ({ user, userProfile }) => {
           <Route path="/members" element={<MembersPage userId={user.uid} />} />
           <Route path="/monthly" element={<MonthlyViewPage userId={user.uid} />} />
           <Route path="/lists" element={<ListsPage userId={user.uid} />} />
+          <Route path="/lists/shared/:listId" element={<SharedListViewPage userId={user.uid} />} />
           <Route path="/profile" element={<ProfilePage userProfile={userProfile} />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
