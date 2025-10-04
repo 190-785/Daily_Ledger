@@ -10,8 +10,8 @@ import {
   doc,
   Timestamp,
   writeBatch,
+  deleteDoc,
 } from "firebase/firestore";
-import { updateDailyStats, updateMonthlyStats } from "../utils/statsCalculator";
 import MemberListControls from "../components/MemberListControls";
 
 export default function LedgerPage({ userId }) {
@@ -46,15 +46,11 @@ export default function LedgerPage({ userId }) {
   // Apply sorting and search
   useEffect(() => {
     let filtered = [...members];
-
-    // Apply search filter
     if (searchQuery.trim()) {
       filtered = filtered.filter((member) =>
         member.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-
-    // Apply sorting
     switch (sortBy) {
       case "rank":
         filtered.sort((a, b) => (a.rank || 0) - (b.rank || 0));
@@ -72,7 +68,6 @@ export default function LedgerPage({ userId }) {
       default:
         break;
     }
-
     setDisplayedMembers(filtered);
   }, [members, sortBy, searchQuery]);
 
@@ -95,7 +90,9 @@ export default function LedgerPage({ userId }) {
   }, [selectedDate, userId]);
 
   const handleAddTransaction = async (member, amount) => {
-    if (!amount || Number(amount) < 0) {
+    // Prevent adding 0 or negative amounts
+    if (!amount || Number(amount) <= 0) {
+      alert("Please enter a valid amount greater than zero.");
       return;
     }
     await addDoc(collection(db, "users", userId, "transactions"), {
@@ -106,11 +103,6 @@ export default function LedgerPage({ userId }) {
       timestamp: Timestamp.now(),
     });
     setCustomAmounts((prev) => ({ ...prev, [member.id]: "" }));
-    
-    // Update stats in background
-    const monthYear = selectedDate.slice(0, 7);
-    updateDailyStats(userId, selectedDate).catch(console.error);
-    updateMonthlyStats(userId, monthYear).catch(console.error);
   };
 
   const handleStartEdit = (transaction) => {
@@ -124,7 +116,11 @@ export default function LedgerPage({ userId }) {
   };
 
   const handleUpdateTransaction = async (transactionId) => {
-    if (!editAmount || Number(editAmount) < 0) {
+    // If user updates to 0 or less, treat it as a delete action.
+    if (!editAmount || Number(editAmount) <= 0) {
+      handleDeleteTransaction(transactionId);
+      setEditingTransaction(null);
+      setEditAmount("");
       return;
     }
     await updateDoc(doc(db, "users", userId, "transactions", transactionId), {
@@ -132,11 +128,13 @@ export default function LedgerPage({ userId }) {
     });
     setEditingTransaction(null);
     setEditAmount("");
-    
-    // Update stats in background
-    const monthYear = selectedDate.slice(0, 7);
-    updateDailyStats(userId, selectedDate).catch(console.error);
-    updateMonthlyStats(userId, monthYear).catch(console.error);
+  };
+
+  // This is now a real delete function.
+  const handleDeleteTransaction = async (transactionId) => {
+    if (window.confirm("Are you sure you want to delete this entry?")) {
+      await deleteDoc(doc(db, "users", userId, "transactions", transactionId));
+    }
   };
 
   // Drag and drop handlers
@@ -159,21 +157,15 @@ export default function LedgerPage({ userId }) {
 
   const handleDrop = async (e, dropIndex) => {
     e.preventDefault();
-    
     if (draggedIndex === null || draggedIndex === dropIndex) {
       setDraggedIndex(null);
       setDragOverIndex(null);
       return;
     }
-
     const draggedMember = displayedMembers[draggedIndex];
     const dropMember = displayedMembers[dropIndex];
-
-    // Update all ranks in the affected range
     const batch = writeBatch(db);
-    
     if (draggedIndex < dropIndex) {
-      // Moving down: shift items up
       for (let i = draggedIndex + 1; i <= dropIndex; i++) {
         const member = displayedMembers[i];
         const memberRef = doc(db, "users", userId, "members", member.id);
@@ -182,7 +174,6 @@ export default function LedgerPage({ userId }) {
       const draggedRef = doc(db, "users", userId, "members", draggedMember.id);
       batch.update(draggedRef, { rank: dropMember.rank });
     } else {
-      // Moving up: shift items down
       for (let i = dropIndex; i < draggedIndex; i++) {
         const member = displayedMembers[i];
         const memberRef = doc(db, "users", userId, "members", member.id);
@@ -191,9 +182,7 @@ export default function LedgerPage({ userId }) {
       const draggedRef = doc(db, "users", userId, "members", draggedMember.id);
       batch.update(draggedRef, { rank: dropMember.rank });
     }
-
     await batch.commit();
-    
     setDraggedIndex(null);
     setDragOverIndex(null);
   };
@@ -215,7 +204,6 @@ export default function LedgerPage({ userId }) {
         />
       </div>
 
-      {/* Search and Sort Controls */}
       <MemberListControls
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -231,7 +219,10 @@ export default function LedgerPage({ userId }) {
       ) : (
         <div className="space-y-2 md:space-y-3">
           {displayedMembers.map((member, index) => {
-            const memberTransactions = transactions[member.id] || [];
+            // Filter out zero-amount transactions from being displayed
+            const memberTransactions = (transactions[member.id] || []).filter(
+              (t) => t.amount > 0
+            );
             const totalPaidToday = memberTransactions.reduce(
               (acc, curr) => acc + curr.amount,
               0
@@ -241,14 +232,14 @@ export default function LedgerPage({ userId }) {
               <div
                 key={member.id}
                 className={`p-3 md:p-4 rounded-lg border ${
-                  totalPaidToday > 0 
-                    ? "bg-green-100 border-green-300" 
-                    : "bg-red-100 border-red-300"
+                  hasPaid
+                    ? "bg-green-100 border-green-300"
+                    : "bg-gray-50 border-gray-200"
                 } ${
-                  draggedIndex === index 
-                    ? "opacity-50 border-blue-500" 
-                    : dragOverIndex === index 
-                    ? "border-blue-400 border-2 shadow-lg" 
+                  draggedIndex === index
+                    ? "opacity-50 border-blue-500"
+                    : dragOverIndex === index
+                    ? "border-blue-400 border-2 shadow-lg"
                     : ""
                 }`}
                 draggable={sortBy === "rank"}
@@ -261,19 +252,19 @@ export default function LedgerPage({ userId }) {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 md:gap-4">
                   <div className="flex items-center gap-2 md:gap-3">
                     {sortBy === "rank" && (
-                      <div 
+                      <div
                         className="hidden sm:block cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
                         title="Drag to reorder"
                       >
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="18" 
-                          height="18" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          strokeWidth="2" 
-                          strokeLinecap="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
                           strokeLinejoin="round"
                         >
                           <line x1="8" y1="6" x2="21" y2="6"></line>
@@ -285,9 +276,11 @@ export default function LedgerPage({ userId }) {
                         </svg>
                       </div>
                     )}
-                    <span className="font-bold text-base md:text-lg">{member.name}</span>
+                    <span className="font-bold text-base md:text-lg">
+                      {member.name}
+                    </span>
                   </div>
-                  {totalPaidToday > 0 ? (
+                  {hasPaid ? (
                     <div className="font-semibold text-green-800 text-sm md:text-base">
                       Paid Today: ₹{totalPaidToday.toLocaleString()}
                     </div>
@@ -342,7 +335,9 @@ export default function LedgerPage({ userId }) {
                         {editingTransaction === t.id ? (
                           <>
                             <div className="flex items-center gap-1.5 md:gap-2">
-                              <span className="text-xs md:text-sm">Amount:</span>
+                              <span className="text-xs md:text-sm">
+                                Amount:
+                              </span>
                               <input
                                 type="number"
                                 value={editAmount}
@@ -368,15 +363,23 @@ export default function LedgerPage({ userId }) {
                           </>
                         ) : (
                           <>
-                            <span className="text-xs md:text-sm">Amount: ₹{t.amount.toLocaleString()}</span>
-                            {t.amount > 0 && (
+                            <span className="text-xs md:text-sm">
+                              Amount: ₹{t.amount.toLocaleString()}
+                            </span>
+                            <div className="flex items-center space-x-2">
                               <button
                                 onClick={() => handleStartEdit(t)}
-                                className="text-xs bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 md:px-3 rounded-md"
+                                className="text-sm bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-1 px-3 rounded-lg"
                               >
-                                Update
+                                Edit
                               </button>
-                            )}
+                              <button
+                                onClick={() => handleDeleteTransaction(t.id)}
+                                className="text-sm bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded-lg"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </>
                         )}
                       </div>
@@ -386,16 +389,6 @@ export default function LedgerPage({ userId }) {
               </div>
             );
           })}
-          {displayedMembers.length === 0 && members.length > 0 && (
-            <p className="text-center py-4 text-gray-500 text-sm md:text-base">
-              No members found matching your search.
-            </p>
-          )}
-          {members.length === 0 && (
-            <p className="text-center py-4 text-gray-500 text-sm md:text-base">
-              Add members on the 'Members' page to get started.
-            </p>
-          )}
         </div>
       )}
     </div>
