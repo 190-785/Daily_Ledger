@@ -68,13 +68,21 @@ export async function updateDailyStats(userId, date) {
       
       // Calculate expected amount (monthlyTarget * number of months since creation)
       let totalExpected = 0;
-      let checkDate = new Date(memberCreatedDate);
-      while (checkDate <= currentDate) {
+      let checkDate = new Date(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1);
+      const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      
+      // Count each month from member creation to current month (inclusive)
+      while (checkDate <= endDate) {
         totalExpected += member.monthlyTarget || 0;
         checkDate.setMonth(checkDate.getMonth() + 1);
       }
 
       const outstandingBalance = totalExpected - totalPaidAllTime;
+      
+      // Debug log for troubleshooting
+      if (outstandingBalance !== 0) {
+        console.log(`Member: ${member.name}, Expected: ${totalExpected}, Paid: ${totalPaidAllTime}, Outstanding: ${outstandingBalance}`);
+      }
 
       // Paid tab: Only members who paid something today (amount > 0)
       if (paidToday > 0) {
