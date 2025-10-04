@@ -36,31 +36,68 @@ export async function updateDailyStats(userId, date) {
       0
     );
 
-    const paidMemberIds = new Set(todayTransactions.map((t) => t.memberId));
-    const paidCount = paidMemberIds.size;
-    const pendingCount = members.length - paidCount;
+    // Get ALL transactions for outstanding calculation
+    const allTransactionsSnapshot = await getDocs(
+      collection(db, "users", userId, "transactions")
+    );
+    const allTransactions = allTransactionsSnapshot.docs.map((doc) =>
+      doc.data()
+    );
 
     // Sort members by rank
     members.sort((a, b) => (a.rank || 0) - (b.rank || 0));
 
-    const paidMembers = members
-      .filter((m) => paidMemberIds.has(m.id))
-      .map((m) => ({
-        memberId: m.id,
-        memberName: m.name,
-        rank: m.rank || 0,
-        amount: todayTransactions
-          .filter((t) => t.memberId === m.id)
-          .reduce((sum, t) => sum + t.amount, 0),
-      }));
+    const paidMembers = [];
+    const pendingMembers = [];
 
-    const pendingMembers = members
-      .filter((m) => !paidMemberIds.has(m.id))
-      .map((m) => ({
-        memberId: m.id,
-        memberName: m.name,
-        rank: m.rank || 0,
-      }));
+    // Calculate outstanding for each member
+    for (const member of members) {
+      // Get amount paid today
+      const paidToday = todayTransactions
+        .filter((t) => t.memberId === member.id)
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      // Calculate total outstanding (all time)
+      const totalPaidAllTime = allTransactions
+        .filter((t) => t.memberId === member.id)
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      // Get member creation date
+      const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
+      const currentDate = new Date(date);
+      
+      // Calculate expected amount (monthlyTarget * number of months since creation)
+      let totalExpected = 0;
+      let checkDate = new Date(memberCreatedDate);
+      while (checkDate <= currentDate) {
+        totalExpected += member.monthlyTarget || 0;
+        checkDate.setMonth(checkDate.getMonth() + 1);
+      }
+
+      const outstandingBalance = totalExpected - totalPaidAllTime;
+
+      // Paid tab: Only members who paid something today (amount > 0)
+      if (paidToday > 0) {
+        paidMembers.push({
+          memberId: member.id,
+          memberName: member.name,
+          rank: member.rank || 0,
+          amount: paidToday,
+        });
+      } 
+      // Didn't Pay tab: Members who didn't pay today AND have outstanding dues (> 0)
+      else if (outstandingBalance > 0) {
+        pendingMembers.push({
+          memberId: member.id,
+          memberName: member.name,
+          rank: member.rank || 0,
+        });
+      }
+      // Members with 0 outstanding are excluded from both tabs
+    }
+
+    const paidCount = paidMembers.length;
+    const pendingCount = pendingMembers.length;
 
     // Save to Firebase
     const statsData = {
