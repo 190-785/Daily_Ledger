@@ -8,6 +8,7 @@ const getTodayDate = () => new Date().toISOString().split("T")[0];
 
 export default function DashboardPage({ userId }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthYear());
+  const [selectedDate, setSelectedDate] = useState(getTodayDate());
   const [viewTab, setViewTab] = useState("daily"); // 'daily' or 'monthly'
   const [dailyStats, setDailyStats] = useState({
     totalCollected: 0,
@@ -28,11 +29,10 @@ export default function DashboardPage({ userId }) {
 
   const calculateDailyStats = useCallback(async () => {
     setLoading(true);
-    const todayDate = getTodayDate();
 
     try {
       // Try to get cached stats first
-      const cachedStatsRef = doc(db, "users", userId, "daily_stats", todayDate);
+      const cachedStatsRef = doc(db, "users", userId, "daily_stats", selectedDate);
       const cachedStatsSnap = await getDoc(cachedStatsRef);
 
       if (cachedStatsSnap.exists()) {
@@ -50,26 +50,26 @@ export default function DashboardPage({ userId }) {
           recentTransactions: [],
         });
 
-        // Get recent transactions separately for real-time updates
-        const todayQuery = query(
+        // Get transactions for the selected date
+        const dateQuery = query(
           collection(db, "users", userId, "transactions"),
-          where("date", "==", todayDate)
+          where("date", "==", selectedDate)
         );
-        const todaySnapshot = await getDocs(todayQuery);
-        const todayTransactions = todaySnapshot.docs.map((d) => ({
+        const dateSnapshot = await getDocs(dateQuery);
+        const dateTransactions = dateSnapshot.docs.map((d) => ({
           id: d.id,
           ...d.data(),
         }));
 
         setDailyStats((prev) => ({
           ...prev,
-          recentTransactions: todayTransactions.sort(
+          recentTransactions: dateTransactions.sort(
             (a, b) => b.timestamp.toDate() - a.timestamp.toDate()
           ),
         }));
       } else {
         // No cache, calculate and save
-        const stats = await updateDailyStats(userId, todayDate);
+        const stats = await updateDailyStats(userId, selectedDate);
         setDailyStats({
           totalCollected: stats.totalCollected,
           totalMembers: stats.totalMembers,
@@ -88,7 +88,7 @@ export default function DashboardPage({ userId }) {
     }
 
     setLoading(false);
-  }, [userId]);
+  }, [userId, selectedDate]);
 
   const calculateMonthlyStats = useCallback(async () => {
     setLoading(true);
@@ -139,20 +139,30 @@ export default function DashboardPage({ userId }) {
     } else {
       calculateMonthlyStats();
     }
-  }, [viewTab, calculateDailyStats, calculateMonthlyStats]);
+  }, [viewTab, selectedDate, selectedMonth, calculateDailyStats, calculateMonthlyStats]);
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md">
       <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
         <h2 className="text-3xl font-bold">Dashboard</h2>
-        {viewTab === "monthly" && (
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-gray-50 border-gray-300 text-gray-900 rounded-lg p-2"
-          />
-        )}
+        <div className="flex gap-2">
+          {viewTab === "daily" && (
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-gray-50 border-gray-300 text-gray-900 rounded-lg p-2"
+            />
+          )}
+          {viewTab === "monthly" && (
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-gray-50 border-gray-300 text-gray-900 rounded-lg p-2"
+            />
+          )}
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -165,7 +175,7 @@ export default function DashboardPage({ userId }) {
               : "bg-transparent text-gray-600 hover:bg-gray-200"
           }`}
         >
-          📅 Today's Stats
+          📅 Daily View
         </button>
         <button
           onClick={() => setViewTab("monthly")}
@@ -175,7 +185,7 @@ export default function DashboardPage({ userId }) {
               : "bg-transparent text-gray-600 hover:bg-gray-200"
           }`}
         >
-          📊 Monthly Stats
+          📊 Monthly View
         </button>
       </div>
       {loading ? (
@@ -194,7 +204,7 @@ export default function DashboardPage({ userId }) {
             </div>
             <div className="bg-green-100 p-4 rounded-lg text-center">
               <h3 className="text-sm font-semibold text-green-800">
-                Collected Today
+                Collected on {selectedDate}
               </h3>
               <p className="text-3xl font-bold text-green-900 mt-2">
                 ₹{dailyStats.totalCollected.toLocaleString()}
@@ -202,7 +212,7 @@ export default function DashboardPage({ userId }) {
             </div>
             <div className="bg-orange-100 p-4 rounded-lg text-center">
               <h3 className="text-sm font-semibold text-orange-800">
-                Pending Payments
+                Didn't Pay
               </h3>
               <p className="text-3xl font-bold text-orange-900 mt-2">
                 {dailyStats.pendingToday.length}
@@ -210,12 +220,12 @@ export default function DashboardPage({ userId }) {
             </div>
           </div>
 
-          {/* Today's Payment Status */}
+          {/* Payment Status for Selected Date */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div className="bg-white p-4 rounded-lg border-2 border-green-200">
               <h3 className="text-lg font-bold text-green-800 mb-3 flex items-center">
                 <span className="bg-green-500 w-3 h-3 rounded-full mr-2"></span>
-                ✅ Paid Today ({dailyStats.paidToday.length})
+                ✅ Paid ({dailyStats.paidToday.length})
               </h3>
               <div className="max-h-96 overflow-y-auto space-y-2">
                 {dailyStats.paidToday.length > 0 ? (
@@ -232,7 +242,7 @@ export default function DashboardPage({ userId }) {
                   ))
                 ) : (
                   <p className="text-gray-500 text-sm py-4 text-center">
-                    No payments received yet today
+                    No payments received on this date
                   </p>
                 )}
               </div>
@@ -241,7 +251,7 @@ export default function DashboardPage({ userId }) {
             <div className="bg-white p-4 rounded-lg border-2 border-orange-200">
               <h3 className="text-lg font-bold text-orange-800 mb-3 flex items-center">
                 <span className="bg-orange-500 w-3 h-3 rounded-full mr-2"></span>
-                ⏳ Pending Today ({dailyStats.pendingToday.length})
+                ⏳ Didn't Pay ({dailyStats.pendingToday.length})
               </h3>
               <div className="max-h-96 overflow-y-auto space-y-2">
                 {dailyStats.pendingToday.length > 0 ? (
@@ -255,16 +265,16 @@ export default function DashboardPage({ userId }) {
                   ))
                 ) : (
                   <p className="text-green-600 text-sm py-4 text-center font-semibold">
-                    🎉 Everyone has paid today!
+                    🎉 Everyone paid on this date!
                   </p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Today's Transactions */}
+          {/* Transactions for Selected Date */}
           <div>
-            <h3 className="text-xl font-bold mb-3">Today's Transactions</h3>
+            <h3 className="text-xl font-bold mb-3">Transactions on {selectedDate}</h3>
             <div className="bg-white p-4 rounded-lg border">
               <div className="space-y-2 max-h-80 overflow-y-auto">
                 {dailyStats.recentTransactions.length > 0 ? (
@@ -286,7 +296,7 @@ export default function DashboardPage({ userId }) {
                   ))
                 ) : (
                   <p className="text-center text-gray-500 py-4">
-                    No transactions yet today
+                    No transactions on this date
                   </p>
                 )}
               </div>
@@ -331,12 +341,49 @@ export default function DashboardPage({ userId }) {
             </div>
           </div>
 
+          {/* Outstanding Breakdown */}
+          <div className="bg-gradient-to-r from-amber-50 to-red-50 p-6 rounded-lg mb-6 border-2 border-amber-200">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+              <span className="bg-amber-500 w-3 h-3 rounded-full mr-2"></span>
+              Outstanding Balance Breakdown
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-4 rounded-lg text-center">
+                <h4 className="text-sm font-semibold text-gray-600 mb-2">
+                  This Month Target
+                </h4>
+                <p className="text-2xl font-bold text-blue-600">
+                  ₹{monthlyStats.totalTarget.toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-white p-4 rounded-lg text-center">
+                <h4 className="text-sm font-semibold text-gray-600 mb-2">
+                  Collected This Month
+                </h4>
+                <p className="text-2xl font-bold text-green-600">
+                  ₹{monthlyStats.totalCollected.toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-white p-4 rounded-lg text-center">
+                <h4 className="text-sm font-semibold text-gray-600 mb-2">
+                  Total Outstanding
+                </h4>
+                <p className="text-2xl font-bold text-red-600">
+                  ₹{monthlyStats.totalOutstanding.toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  (Includes previous months)
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Monthly Target vs Collected */}
           <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-lg mb-6 border-2 border-blue-200">
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                  Monthly Target
+                  This Month Target
                 </h3>
                 <p className="text-3xl font-bold text-blue-600">
                   ₹{monthlyStats.totalTarget.toLocaleString()}
@@ -344,7 +391,7 @@ export default function DashboardPage({ userId }) {
               </div>
               <div className="text-center">
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                  Progress
+                  Collection Rate
                 </h3>
                 <div className="w-32 h-32 relative">
                   <svg className="transform -rotate-90 w-32 h-32">
@@ -376,9 +423,9 @@ export default function DashboardPage({ userId }) {
               </div>
               <div className="text-right">
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                  Remaining
+                  This Month Remaining
                 </h3>
-                <p className="text-3xl font-bold text-red-600">
+                <p className="text-3xl font-bold text-orange-600">
                   ₹{(monthlyStats.totalTarget - monthlyStats.totalCollected).toLocaleString()}
                 </p>
               </div>
@@ -387,26 +434,59 @@ export default function DashboardPage({ userId }) {
 
           {/* Members with Outstanding Dues */}
           <div>
-            <h3 className="text-xl font-bold mb-3">
+            <h3 className="text-xl font-bold mb-3 flex items-center">
+              <span className="bg-red-500 w-3 h-3 rounded-full mr-2"></span>
               Members with Outstanding Dues
+              <span className="ml-2 text-sm text-gray-500 font-normal">
+                (Including previous months)
+              </span>
             </h3>
             <div className="bg-white p-4 rounded-lg border">
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="space-y-3 max-h-96 overflow-y-auto">
                 {monthlyStats.membersWithDues.length > 0 ? (
                   monthlyStats.membersWithDues.map((member, index) => (
                     <div
                       key={index}
-                      className="flex justify-between items-center bg-red-50 p-3 rounded-lg hover:bg-red-100"
+                      className="bg-red-50 p-4 rounded-lg hover:bg-red-100 transition-colors border border-red-200"
                     >
-                      <p className="font-semibold">{member.name}</p>
-                      <p className="font-bold text-red-600">
-                        ₹{member.due.toLocaleString()}
-                      </p>
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <p className="font-bold text-lg text-gray-800">{member.name}</p>
+                          <div className="mt-2 text-sm text-gray-600 space-y-1">
+                            <p>
+                              <span className="font-semibold">This Month Target:</span>{" "}
+                              ₹{monthlyStats.totalTarget / monthlyStats.totalMembers}
+                            </p>
+                            {member.paidThisMonth !== undefined && (
+                              <p>
+                                <span className="font-semibold">Paid This Month:</span>{" "}
+                                <span className="text-green-600">
+                                  ₹{member.paidThisMonth?.toLocaleString() || 0}
+                                </span>
+                              </p>
+                            )}
+                            {member.previousBalance !== undefined && member.previousBalance > 0 && (
+                              <p>
+                                <span className="font-semibold">Previous Balance Due:</span>{" "}
+                                <span className="text-orange-600">
+                                  ₹{member.previousBalance?.toLocaleString() || 0}
+                                </span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right ml-4">
+                          <p className="text-xs text-gray-500 mb-1">Total Outstanding</p>
+                          <p className="font-bold text-2xl text-red-600">
+                            ₹{member.due.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   ))
                 ) : (
                   <p className="text-center text-green-600 py-4 font-semibold">
-                    🎉 All dues are cleared for this month!
+                    🎉 All dues are cleared (including previous months)!
                   </p>
                 )}
               </div>

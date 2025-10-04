@@ -18,7 +18,7 @@ export default function Footer() {
           {/* Social Links */}
           <div className="flex items-center gap-4">
             <a
-              href="https://www.linkedin.com/in/yash-agarwal"
+              href="https://www.linkedin.com/in/yash-agarwal-190e785/"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors"
@@ -35,7 +35,7 @@ export default function Footer() {
             </a>
 
             <a
-              href="https://twitter.com/yash_agarwal"
+              href="https://x.com/190_785"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 bg-black hover:bg-gray-900 px-4 py-2 rounded-lg transition-colors"
@@ -52,7 +52,7 @@ export default function Footer() {
             </a>
 
             <a
-              href="mailto:yash@example.com"
+              href="mailto:190E785@gmail.com"
               className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition-colors"
             >
               <svg

@@ -8,6 +8,7 @@ import DashboardPage from "./pages/DashboardPage";
 import LedgerPage from "./pages/LedgerPage";
 import MembersPage from "./pages/MembersPage";
 import MonthlyViewPage from "./pages/MonthlyViewPage";
+import ProfilePage from "./pages/ProfilePage";
 import Footer from "./components/Footer";
 
 export default function App() {
@@ -59,6 +60,8 @@ const MainApp = ({ user }) => {
         return <MembersPage userId={user.uid} />;
       case "monthly":
         return <MonthlyViewPage userId={user.uid} />;
+      case "profile":
+        return <ProfilePage />;
       default:
         return <DashboardPage userId={user.uid} />;
     }
@@ -137,6 +140,16 @@ const MainApp = ({ user }) => {
                 📅 Monthly View
               </button>
               <button
+                onClick={() => setPage("profile")}
+                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                  page === "profile"
+                    ? "bg-white text-blue-700 shadow-md"
+                    : "text-white hover:bg-blue-700"
+                }`}
+              >
+                👤 Profile
+              </button>
+              <button
                 onClick={handleLogout}
                 className="px-4 py-2 rounded-lg font-semibold bg-red-500 text-white hover:bg-red-600 transition-all shadow-md ml-2"
               >
@@ -153,6 +166,7 @@ const MainApp = ({ user }) => {
                 <option value="ledger">📝 Ledger</option>
                 <option value="members">👥 Members</option>
                 <option value="monthly">📅 Monthly</option>
+                <option value="profile">👤 Profile</option>
               </select>
               <button
                 onClick={handleLogout}

@@ -24,6 +24,7 @@ export default function MembersPage({ userId }) {
   const [editingMember, setEditingMember] = useState(null);
   const [formError, setFormError] = useState("");
   const [deletingMember, setDeletingMember] = useState(null);
+  const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
 
   useEffect(() => {
     const membersQuery = query(collection(db, "users", userId, "members"));
@@ -59,24 +60,46 @@ export default function MembersPage({ userId }) {
       return;
     }
 
+    // Show confirmation popup for updates
+    if (editingMember) {
+      setShowUpdateConfirm(true);
+      return;
+    }
+
+    // Add new member without confirmation
     const memberData = {
       name: formData.name,
       defaultDailyPayment: daily,
       monthlyTarget: monthly,
     };
 
-    if (editingMember) {
-      await updateDoc(
-        doc(db, "users", userId, "members", editingMember.id),
-        memberData
-      );
-    } else {
-      await addDoc(collection(db, "users", userId, "members"), {
-        ...memberData,
-        createdOn: Timestamp.now(),
-      });
-    }
+    await addDoc(collection(db, "users", userId, "members"), {
+      ...memberData,
+      createdOn: Timestamp.now(),
+    });
     resetForm();
+  };
+
+  const confirmUpdate = async () => {
+    const daily = Number(formData.defaultDailyPayment);
+    const monthly = Number(formData.monthlyTarget);
+
+    const memberData = {
+      name: formData.name,
+      defaultDailyPayment: daily,
+      monthlyTarget: monthly,
+    };
+
+    await updateDoc(
+      doc(db, "users", userId, "members", editingMember.id),
+      memberData
+    );
+    setShowUpdateConfirm(false);
+    resetForm();
+  };
+
+  const cancelUpdate = () => {
+    setShowUpdateConfirm(false);
   };
 
   const handleEdit = (member) => {
@@ -179,6 +202,45 @@ export default function MembersPage({ userId }) {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Update Confirmation Popup */}
+      {showUpdateConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <h3 className="text-2xl font-bold mb-4 text-gray-800">
+              Confirm Update
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to update <strong>{formData.name}</strong>'s
+              information?
+            </p>
+            <div className="bg-gray-50 p-4 rounded-lg mb-6">
+              <p className="text-sm text-gray-700">
+                <strong>Daily Payment:</strong> ₹
+                {Number(formData.defaultDailyPayment).toLocaleString()}
+              </p>
+              <p className="text-sm text-gray-700">
+                <strong>Monthly Target:</strong> ₹
+                {Number(formData.monthlyTarget).toLocaleString()}
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={cancelUpdate}
+                className="bg-gray-300 hover:bg-gray-400 font-bold py-2 px-6 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmUpdate}
+                className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg"
+              >
+                Confirm Update
+              </button>
+            </div>
+          </div>
         </div>
       )}
       <div className="overflow-x-auto">
