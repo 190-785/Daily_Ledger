@@ -1,119 +1,207 @@
 rules_version = '2';
 
+// ╔═══════════════════════════════════════════════════════════════╗
+// ║  DAILY LEDGER - PRODUCTION FIRESTORE SECURITY RULES           ║
+// ║  Optimized for Vercel deployment                              ║
+// ║  Last updated: 2025-10-05                                     ║
+// ╚═══════════════════════════════════════════════════════════════╝
+
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper functions
+    // ═══════════════════════════════════════════════════════════
+    // HELPER FUNCTIONS
+    // ═══════════════════════════════════════════════════════════
+    
+    // Check if user is authenticated
     function isSignedIn() {
       return request.auth != null;
     }
     
+    // Check if user owns the resource
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
     
+    // Validate string length
     function isValidString(text, minLen, maxLen) {
       return text is string && 
              text.size() >= minLen && 
              text.size() <= maxLen;
     }
     
+    // Validate email format
     function isValidEmail(email) {
       return email is string && 
-             email.matches('.*@.*\\..*');
+             email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
     }
     
+    // Validate username format (lowercase alphanumeric + underscore)
+    function isValidUsername(username) {
+      return username is string &&
+             username.size() >= 3 &&
+             username.size() <= 20 &&
+             username.matches('^[a-z0-9_]+$');
+    }
+    
+    // Check if timestamp is recent (within last 5 minutes)
+    function isRecentTimestamp(ts) {
+      return ts is timestamp &&
+             ts > request.time - duration.value(5, 'm') &&
+             ts <= request.time + duration.value(1, 'm');
+    }
+    
+    // Validate timestamp on create
     function hasValidTimestamp(data) {
       return data.createdAt is timestamp &&
-             data.createdAt == request.time;
+             isRecentTimestamp(data.createdAt);
     }
     
-    // Username mappings (public read for signup, owner write)
+    // Check if data hasn't been tampered with
+    function unchangedFields(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+    
+    
+    // ═══════════════════════════════════════════════════════════
+    // USERNAME MAPPINGS (Public Read for Signup)
+    // ═══════════════════════════════════════════════════════════
+    
     match /usernames/{username} {
-      // Allow anyone to check if username exists (needed for signup validation)
+      // PUBLIC READ: Anyone can check username availability (required for signup)
+      // This is safe because:
+      // 1. Only shows if username exists (true/false)
+      // 2. Doesn't expose user data
+      // 3. Necessary for signup validation
       allow read: if true;
       
-      // Only authenticated users can create username mappings
+      // CREATE: Only authenticated users can claim usernames
       allow create: if isSignedIn() && 
-                      isValidString(username, 3, 20) &&
-                      username.matches('[a-z0-9_]+') &&
+                      isValidUsername(username) &&
                       request.resource.data.userId == request.auth.uid &&
-                      request.resource.data.createdAt is timestamp;
+                      request.resource.data.createdAt is timestamp &&
+                      isRecentTimestamp(request.resource.data.createdAt) &&
+                      request.resource.data.keys().hasOnly(['userId', 'createdAt']);
       
-      // Usernames are immutable - no updates or deletes allowed
+      // NO UPDATES/DELETES: Usernames are immutable
       allow update, delete: if false;
     }
     
-    // User profiles
+    
+    // ═══════════════════════════════════════════════════════════
+    // USER PROFILES & DATA
+    // ═══════════════════════════════════════════════════════════
+    
     match /users/{userId} {
-      // Public read for basic profile data (for sharing features)
+      
+      // READ: Any authenticated user can read basic profile data
+      // (Required for sharing features - users need to see who they're sharing with)
       allow read: if isSignedIn();
       
-      // Users can only create/update their own profile
+      // CREATE: Users can only create their own profile
       allow create: if isOwner(userId) &&
-                      isValidString(request.resource.data.username, 3, 20) &&
+                      isValidUsername(request.resource.data.username) &&
                       isValidString(request.resource.data.displayName, 1, 100) &&
                       isValidEmail(request.resource.data.email) &&
-                      hasValidTimestamp(request.resource.data);
-                      
+                      hasValidTimestamp(request.resource.data) &&
+                      request.resource.data.updatedAt is timestamp;
+      
+      // UPDATE: Users can update their own profile (except username)
       allow update: if isOwner(userId) &&
                       request.resource.data.username == resource.data.username && // Username immutable
-                      isValidString(request.resource.data.displayName, 1, 100);
+                      isValidString(request.resource.data.displayName, 1, 100) &&
+                      request.resource.data.updatedAt is timestamp &&
+                      isRecentTimestamp(request.resource.data.updatedAt);
       
+      // DELETE: Users can delete their own profile
       allow delete: if isOwner(userId);
       
-      // User's members
+      
+      // ─────────────────────────────────────────────────────────
+      // MEMBERS (User's collection members)
+      // ─────────────────────────────────────────────────────────
+      
       match /members/{memberId} {
-        allow read, write: if isOwner(userId);
+        // Owner has full access to their members
+        allow read: if isOwner(userId);
         
         allow create: if isOwner(userId) &&
                         isValidString(request.resource.data.name, 1, 100) &&
                         request.resource.data.setAmount is number &&
                         request.resource.data.setAmount >= 0 &&
-                        request.resource.data.rank is number;
-                        
+                        request.resource.data.setAmount <= 1000000 && // Max 1M per transaction
+                        request.resource.data.rank is number &&
+                        request.resource.data.rank >= 0;
+        
         allow update: if isOwner(userId) &&
                         isValidString(request.resource.data.name, 1, 100) &&
                         request.resource.data.setAmount is number &&
-                        request.resource.data.setAmount >= 0;
+                        request.resource.data.setAmount >= 0 &&
+                        request.resource.data.setAmount <= 1000000;
+        
+        allow delete: if isOwner(userId);
       }
       
-      // User's transactions
+      
+      // ─────────────────────────────────────────────────────────
+      // TRANSACTIONS (Daily ledger entries)
+      // ─────────────────────────────────────────────────────────
+      
       match /transactions/{transactionId} {
+        // Owner can read all their transactions
         allow read: if isOwner(userId);
         
+        // Create transaction with validation
         allow create: if isOwner(userId) &&
                         request.resource.data.amount is number &&
                         request.resource.data.amount >= 0 &&
+                        request.resource.data.amount <= 1000000 && // Max 1M per transaction
                         isValidString(request.resource.data.memberName, 1, 100) &&
                         request.resource.data.date is string &&
-                        request.resource.data.timestamp is timestamp;
-                        
-        allow update, delete: if isOwner(userId);
+                        request.resource.data.date.size() == 10 && // YYYY-MM-DD format
+                        request.resource.data.timestamp is timestamp &&
+                        isRecentTimestamp(request.resource.data.timestamp);
+        
+        // Update and delete transactions
+        allow update: if isOwner(userId) &&
+                        request.resource.data.amount is number &&
+                        request.resource.data.amount >= 0 &&
+                        request.resource.data.amount <= 1000000;
+        
+        allow delete: if isOwner(userId);
       }
       
-      // User's lists
+      
+      // ─────────────────────────────────────────────────────────
+      // LISTS (Shareable lists)
+      // ─────────────────────────────────────────────────────────
+      
       match /lists/{listId} {
-        // Owner can always read/write
+        // Owner has full access
         allow read, write: if isOwner(userId);
         
         // Shared users can read based on permissions
         allow read: if isSignedIn() && 
                       request.auth.uid in resource.data.sharedWith.keys();
         
-        // Create validation
+        // Create list with validation
         allow create: if isOwner(userId) &&
                         isValidString(request.resource.data.name, 1, 100) &&
                         request.resource.data.memberIds is list &&
+                        request.resource.data.memberIds.size() <= 1000 && // Max 1000 members per list
                         request.resource.data.sharedWith is map &&
-                        hasValidTimestamp(request.resource.data);
+                        hasValidTimestamp(request.resource.data) &&
+                        request.resource.data.updatedAt is timestamp;
         
-        // Update validation
+        // Update list with validation
         allow update: if isOwner(userId) &&
                         isValidString(request.resource.data.name, 1, 100) &&
-                        request.resource.data.memberIds is list;
+                        request.resource.data.memberIds is list &&
+                        request.resource.data.memberIds.size() <= 1000 &&
+                        request.resource.data.updatedAt is timestamp &&
+                        isRecentTimestamp(request.resource.data.updatedAt);
         
-        // Access control documents
+        // Access control subcollection
         match /access/{accessId} {
           allow read: if isOwner(userId) || 
                         (isSignedIn() && accessId == request.auth.uid);
@@ -121,32 +209,75 @@ service cloud.firestore {
         }
       }
       
-      // Daily stats cache
+      
+      // ─────────────────────────────────────────────────────────
+      // SHARED LISTS (Reference collection for users)
+      // ─────────────────────────────────────────────────────────
+      
+      match /sharedLists/{listId} {
+        // Users can read lists shared with them
+        allow read: if isOwner(userId);
+        
+        // Only the list owner can write (through their /lists path)
+        allow write: if isOwner(userId);
+      }
+      
+      
+      // ─────────────────────────────────────────────────────────
+      // STATS CACHE (Performance optimization)
+      // ─────────────────────────────────────────────────────────
+      
       match /daily_stats/{date} {
         allow read: if isOwner(userId);
-        allow write: if isOwner(userId);
+        allow write: if isOwner(userId) &&
+                       date.matches('^\\d{4}-\\d{2}-\\d{2}$'); // YYYY-MM-DD format
       }
       
-      // Monthly stats cache
       match /monthly_stats/{monthYear} {
         allow read: if isOwner(userId);
-        allow write: if isOwner(userId);
+        allow write: if isOwner(userId) &&
+                       monthYear.matches('^\\d{4}-\\d{2}$'); // YYYY-MM format
       }
       
-      // Settings
+      
+      // ─────────────────────────────────────────────────────────
+      // SETTINGS (User preferences)
+      // ─────────────────────────────────────────────────────────
+      
       match /settings/{settingId} {
         allow read, write: if isOwner(userId);
       }
+      
+      
+      // ─────────────────────────────────────────────────────────
+      // PROFILE (Alternative structure - if used)
+      // ─────────────────────────────────────────────────────────
+      
+      match /profile/{document=**} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
     }
     
-    // Shared lists (read-only access for shared users)
+    
+    // ═══════════════════════════════════════════════════════════
+    // SHARED LISTS (Global collection - Read-only)
+    // ═══════════════════════════════════════════════════════════
+    
     match /shared_lists/{listId} {
+      // Users can only read lists they have access to
       allow read: if isSignedIn() && 
                     request.auth.uid in resource.data.sharedWith.keys();
-      allow write: if false; // Only owners can write through /users/{userId}/lists
+      
+      // NO WRITES: Lists can only be modified by owner through /users/{userId}/lists
+      allow write: if false;
     }
     
-    // Block all other paths
+    
+    // ═══════════════════════════════════════════════════════════
+    // DEFAULT DENY ALL (Security by default)
+    // ═══════════════════════════════════════════════════════════
+    
     match /{document=**} {
       allow read, write: if false;
     }

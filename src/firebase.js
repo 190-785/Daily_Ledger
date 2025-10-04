@@ -86,8 +86,8 @@ export const createUserProfile = async (userId, username, displayName, email) =>
       username: username.toLowerCase(),
       displayName: displayName,
       email: email,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
     });
   } catch (error) {
     console.error('Error creating user profile:', error);
@@ -146,13 +146,13 @@ export const createList = async (userId, listData) => {
       name: listData.name,
       description: listData.description || '',
       memberIds: listData.memberIds || [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
       shareSettings: {
         type: 'dynamic', // 'dynamic' | 'lastMonth' | 'currentDay'
         allowedViews: ['daily', 'monthly']
       },
-      sharedWith: [] // Array of { userId, username, email, accessLevel, sharedAt }
+      sharedWith: {} // Map of userId -> { username, email, accessLevel, sharedAt }
     });
     return docRef.id;
   } catch (error) {
@@ -329,20 +329,22 @@ export const shareListWithUser = async (ownerUserId, listId, shareData) => {
       throw new Error('List not found');
     }
     
-    // Update the list's sharedWith array
+    // Update the list's sharedWith map (object, not array)
     const listRef = doc(db, 'users', ownerUserId, 'lists', listId);
+    const currentSharedWith = list.sharedWith || {};
+    
     await updateDoc(listRef, {
-      sharedWith: [
-        ...(list.sharedWith || []),
-        {
-          userId: recipientUserId,
+      sharedWith: {
+        ...currentSharedWith,
+        [recipientUserId]: {
           username: username,
           email: email,
           accessLevel: 'view',
-          sharedAt: new Date()
+          sharedAt: serverTimestamp()
         }
-      ],
-      shareSettings: shareSettings
+      },
+      shareSettings: shareSettings,
+      updatedAt: serverTimestamp()
     });
     
     // Create entry in recipient's sharedLists collection
@@ -354,7 +356,7 @@ export const shareListWithUser = async (ownerUserId, listId, shareData) => {
       listName: list.name,
       description: list.description || '',
       shareSettings: shareSettings,
-      sharedAt: new Date()
+      sharedAt: serverTimestamp()
     });
   } catch (error) {
     console.error('Error sharing list:', error);
@@ -376,14 +378,14 @@ export const revokeListAccess = async (ownerUserId, listId, recipientUserId) => 
       throw new Error('List not found');
     }
     
-    // Remove user from sharedWith array
-    const updatedSharedWith = (list.sharedWith || []).filter(
-      share => share.userId !== recipientUserId
-    );
+    // Remove user from sharedWith map (object)
+    const updatedSharedWith = { ...(list.sharedWith || {}) };
+    delete updatedSharedWith[recipientUserId];
     
     const listRef = doc(db, 'users', ownerUserId, 'lists', listId);
     await updateDoc(listRef, {
-      sharedWith: updatedSharedWith
+      sharedWith: updatedSharedWith,
+      updatedAt: serverTimestamp()
     });
     
     // Remove from recipient's sharedLists
