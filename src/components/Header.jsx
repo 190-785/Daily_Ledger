@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import UserDropdown from './UserDropdown';
-import ThemeToggle from './ThemeToggle';
 
 export default function Header({ userProfile, isSidebarCollapsed }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -41,11 +40,8 @@ export default function Header({ userProfile, isSidebarCollapsed }) {
           </div>
         </div>
 
-        {/* Right: Theme Toggle + User */}
+        {/* Right: User */}
         <div className="flex items-center gap-2 md:gap-4">
-          {/* Theme Toggle */}
-          <ThemeToggle />
-
           {/* User Dropdown */}
           <UserDropdown userProfile={userProfile} />
         </div>

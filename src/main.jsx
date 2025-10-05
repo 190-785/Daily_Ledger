@@ -8,12 +8,10 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 // Initialize PWA features
 initPWA();
 
-// Initialize theme from localStorage or default to light
+// Initialize dark theme as default
 if (typeof document !== 'undefined') {
-  const savedTheme = localStorage.getItem('theme');
-  if (savedTheme === 'dark') {
-    document.documentElement.classList.add('dark-theme');
-  }
+  document.documentElement.classList.add('dark-theme');
+  localStorage.setItem('theme', 'dark');
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

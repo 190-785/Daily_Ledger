@@ -127,30 +127,30 @@ export default function DashboardPage({ userId }) {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                   <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
                     <CardContent className="text-center p-4">
-                      <Text size="sm" weight="semibold" className="text-blue-800 dark:text-blue-800">
+                      <Text size="sm" weight="semibold" className="text-blue-900 dark:text-blue-200">
                         Total Members
                       </Text>
-                      <Heading level="h2" className="text-blue-900 dark:text-blue-800 mt-2">
+                      <Heading level="h2" className="text-blue-950 dark:text-blue-100 mt-2">
                         {dailyStats.totalMembers}
                       </Heading>
                     </CardContent>
                   </Card>
                   <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
                     <CardContent className="text-center p-4">
-                      <Text size="sm" weight="semibold" className="text-green-800 dark:text-green-200">
+                      <Text size="sm" weight="semibold" className="text-green-900 dark:text-green-200">
                         Collected on {selectedDate}
                       </Text>
-                      <Heading level="h2" className="text-green-900 dark:text-green-100 mt-2">
+                      <Heading level="h2" className="text-green-950 dark:text-green-100 mt-2">
                         ₹{dailyStats.totalCollected.toLocaleString()}
                       </Heading>
                     </CardContent>
                   </Card>
                   <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
                     <CardContent className="text-center p-4">
-                      <Text size="sm" weight="semibold" className="text-orange-800 dark:text-orange-200">
+                      <Text size="sm" weight="semibold" className="text-orange-900 dark:text-orange-200">
                         Didn't Pay
                       </Text>
-                      <Heading level="h2" className="text-orange-900 dark:text-orange-100 mt-2">
+                      <Heading level="h2" className="text-orange-950 dark:text-orange-100 mt-2">
                         {dailyStats.pendingMembers.length}
                       </Heading>
                     </CardContent>
@@ -246,34 +246,34 @@ export default function DashboardPage({ userId }) {
               {/* Monthly Stats */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-blue-100 p-4 rounded-lg text-center">
-                  <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
                     Total Members
                   </h3>
-                  <p className="text-3xl font-bold text-blue-900 dark:text-blue-100 mt-2">
+                  <p className="text-3xl font-bold text-blue-950 dark:text-blue-100 mt-2">
                     {monthlyStats.totalMembers}
                   </p>
                 </div>
                 <div className="bg-green-100 p-4 rounded-lg text-center">
-                  <h3 className="text-sm font-semibold text-green-800 dark:text-green-200">
+                  <h3 className="text-sm font-semibold text-green-900 dark:text-green-200">
                     Collected This Month
                   </h3>
-                  <p className="text-3xl font-bold text-green-900 dark:text-green-100 mt-2">
+                  <p className="text-3xl font-bold text-green-950 dark:text-green-100 mt-2">
                     ₹{monthlyStats.totalCollected.toLocaleString()}
                   </p>
                 </div>
                 <div className="bg-red-100 p-4 rounded-lg text-center">
-                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-200">
+                  <h3 className="text-sm font-semibold text-red-900 dark:text-red-200">
                     Outstanding
                   </h3>
-                  <p className="text-3xl font-bold text-red-900 dark:text-red-100 mt-2">
+                  <p className="text-3xl font-bold text-red-950 dark:text-red-100 mt-2">
                     ₹{monthlyStats.totalOutstanding.toLocaleString()}
                   </p>
                 </div>
                 <div className="bg-purple-100 p-4 rounded-lg text-center">
-                  <h3 className="text-sm font-semibold text-purple-800 dark:text-purple-200">
+                  <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200">
                     Collection Rate
                   </h3>
-                  <p className="text-3xl font-bold text-purple-900 dark:text-purple-100 mt-2">
+                  <p className="text-3xl font-bold text-purple-950 dark:text-purple-100 mt-2">
                     {monthlyStats.collectionRate}%
                   </p>
                 </div>
