@@ -157,7 +157,27 @@ export default function ListsPage({ userId }) {
   const handleShareSuccess = (payload) => {
     const listName = payload?.listName || sharingList?.name || 'List';
     const username = payload?.user?.username ? `@${payload.user.username}` : 'the selected user';
-    showShareFeedback(`Shared "${listName}" with ${username}.`, 'success');
+    const shareSettings = payload?.shareSettings;
+    let periodDetail = '';
+    if (shareSettings?.type === 'customDay' && shareSettings.customDay) {
+      try {
+        periodDetail = ` for ${new Date(shareSettings.customDay).toLocaleDateString()}`;
+      } catch {
+        periodDetail = ` for ${shareSettings.customDay}`;
+      }
+    } else if (shareSettings?.type === 'customMonth' && shareSettings.customMonth) {
+      try {
+        const monthDate = new Date(`${shareSettings.customMonth}-01`);
+        periodDetail = ` for ${monthDate.toLocaleDateString(undefined, {
+          month: 'long',
+          year: 'numeric'
+        })}`;
+      } catch {
+        periodDetail = ` for ${shareSettings.customMonth}`;
+      }
+    }
+
+    showShareFeedback(`Shared "${listName}" with ${username}${periodDetail}.`, 'success');
   };
 
   const handleManageAccess = (list) => {

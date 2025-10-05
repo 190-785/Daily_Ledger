@@ -9,6 +9,8 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
 
   const [shareType, setShareType] = useState(shareSettings?.type || 'dynamic');
   const [allowedViews, setAllowedViews] = useState(shareSettings?.allowedViews || ['daily', 'monthly']);
+  const [customDay, setCustomDay] = useState(shareSettings?.customDay || '');
+  const [customMonth, setCustomMonth] = useState(shareSettings?.customMonth || '');
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -23,14 +25,33 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
       setSearchResults([]);
       setSelectedUser(null);
       setMessage({ type: "", text: "" });
+      setCustomDay(shareSettings?.customDay || '');
+      setCustomMonth(shareSettings?.customMonth || '');
     }
-  }, [isOpen, list?.id, shareSettings?.type, shareSettings?.allowedViews, allowedViewsKey]);
+  }, [isOpen, list?.id, shareSettings?.type, shareSettings?.allowedViews, shareSettings?.customDay, shareSettings?.customMonth, allowedViewsKey]);
 
   const shareTypeOptions = [
     { value: 'dynamic', label: '🟢 Live Data', description: 'Real-time updates, always current' },
     { value: 'lastMonth', label: '🟠 Last Month', description: 'Previous month data only' },
-    { value: 'currentDay', label: '🔵 Current Day', description: 'Today\'s data snapshot' }
+    { value: 'currentDay', label: '🔵 Current Day', description: 'Today\'s data snapshot' },
+    { value: 'customDay', label: '📅 Specific Day', description: 'Pick any day to share as a snapshot' },
+    { value: 'customMonth', label: '🗓️ Specific Month', description: 'Pick any month to share as a snapshot' }
   ];
+
+  useEffect(() => {
+    if (shareType === 'customDay') {
+      setAllowedViews((prev) =>
+        prev.length === 1 && prev.includes('daily') ? prev : ['daily']
+      );
+    } else if (shareType === 'customMonth') {
+      setAllowedViews((prev) =>
+        prev.length === 1 && prev.includes('monthly') ? prev : ['monthly']
+      );
+    }
+  }, [shareType, setAllowedViews]);
+
+  const isCustomDay = shareType === 'customDay';
+  const isCustomMonth = shareType === 'customMonth';
 
   const handleToggleView = (view) => {
     if (allowedViews.includes(view)) {
@@ -73,20 +94,34 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
       return;
     }
 
+    if (isCustomDay && !customDay) {
+      setMessage({ type: 'error', text: 'Please pick a day to share.' });
+      return;
+    }
+
+    if (isCustomMonth && !customMonth) {
+      setMessage({ type: 'error', text: 'Please pick a month to share.' });
+      return;
+    }
+
     if (allowedViews.length === 0) {
       setMessage({ type: 'error', text: 'Please select at least one view permission' });
       return;
     }
 
     try {
+      const shareSettingsPayload = {
+        type: shareType,
+        allowedViews: allowedViews,
+        ...(isCustomDay ? { customDay } : {}),
+        ...(isCustomMonth ? { customMonth } : {}),
+      };
+
       await onShare({
         userId: selectedUser.id,
         username: selectedUser.username,
         email: selectedUser.email,
-        shareSettings: {
-          type: shareType,
-          allowedViews: allowedViews
-        }
+        shareSettings: shareSettingsPayload
       });
       
       setMessage({ type: 'success', text: `List shared with @${selectedUser.username}!` });
@@ -94,10 +129,7 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
         listId: list?.id,
         listName: list?.name,
         user: selectedUser,
-        shareSettings: {
-          type: shareType,
-          allowedViews: allowedViews
-        }
+        shareSettings: shareSettingsPayload
       });
       setTimeout(() => {
         onClose();
@@ -171,6 +203,38 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
                 </label>
               ))}
             </div>
+            {isCustomDay && (
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <label className="block text-sm font-medium text-blue-900 mb-2">
+                  Choose the exact day to share
+                </label>
+                <input
+                  type="date"
+                  value={customDay}
+                  onChange={(e) => setCustomDay(e.target.value)}
+                  className="w-full px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <p className="text-xs text-blue-700 mt-2">
+                  Recipients will only see data captured for this selected day.
+                </p>
+              </div>
+            )}
+            {isCustomMonth && (
+              <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <label className="block text-sm font-medium text-purple-900 mb-2">
+                  Choose the specific month to share
+                </label>
+                <input
+                  type="month"
+                  value={customMonth}
+                  onChange={(e) => setCustomMonth(e.target.value)}
+                  className="w-full px-3 py-2 border border-purple-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+                <p className="text-xs text-purple-700 mt-2">
+                  Recipients will only see data summarised for this selected month.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* View Permissions */}
@@ -185,6 +249,7 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
                   checked={allowedViews.includes('daily')}
                   onChange={() => handleToggleView('daily')}
                   className="w-5 h-5 text-blue-600 rounded"
+                  disabled={isCustomDay || isCustomMonth}
                 />
                 <div>
                   <div className="font-medium text-gray-800">📝 Daily View</div>
@@ -197,6 +262,7 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
                   checked={allowedViews.includes('monthly')}
                   onChange={() => handleToggleView('monthly')}
                   className="w-5 h-5 text-blue-600 rounded"
+                  disabled={isCustomDay || isCustomMonth}
                 />
                 <div>
                   <div className="font-medium text-gray-800">📅 Monthly View</div>
@@ -204,6 +270,11 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
                 </div>
               </label>
             </div>
+            {(isCustomDay || isCustomMonth) && (
+              <p className="text-xs text-gray-500 mt-2">
+                Snapshot shares lock the available view so recipients only see the selected period.
+              </p>
+            )}
           </div>
 
           {/* User Search */}

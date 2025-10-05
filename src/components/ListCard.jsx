@@ -13,7 +13,9 @@ export default function ListCard({ list, onEdit, onDelete, onShare, onManageAcce
   const shareTypeLabels = {
     dynamic: '🟢 Live Data',
     lastMonth: '🟠 Last Month',
-    currentDay: '🔵 Current Day'
+    currentDay: '🔵 Current Day',
+    customDay: '📅 Specific Day',
+    customMonth: '🗓️ Specific Month'
   };
 
   return (

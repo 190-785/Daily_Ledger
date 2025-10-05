@@ -24,17 +24,27 @@ export default function BottomNav() {
             key={item.path}
             to={item.path}
             className={`
-              flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg flex-1 transition-all
+              relative flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl flex-1 transition-all
               ${isActive(item.path)
-                ? 'text-blue-600 font-semibold'
-                : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                ? 'bg-blue-600 text-white shadow-md scale-[1.03]'
+                : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'
               }
             `}
+            aria-current={isActive(item.path) ? 'page' : undefined}
           >
-            <span className={`text-2xl ${isActive(item.path) ? 'scale-110' : ''} transition-transform`}>
+            {isActive(item.path) && (
+              <span className="absolute -top-1 h-1 w-8 rounded-full bg-blue-300" aria-hidden="true"></span>
+            )}
+            <span className={`text-2xl ${isActive(item.path) ? 'scale-110 drop-shadow-sm' : ''} transition-transform`}>
               {item.icon}
             </span>
-            <span className="text-xs whitespace-nowrap">{item.label}</span>
+            <span
+              className={`text-xs font-medium whitespace-nowrap ${
+                isActive(item.path) ? 'opacity-100' : 'opacity-80'
+              }`}
+            >
+              {item.label}
+            </span>
           </Link>
         ))}
       </div>

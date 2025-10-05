@@ -253,7 +253,7 @@ export default function LedgerPage({ userId }) {
                   <div className="flex items-center gap-2 md:gap-3">
                     {sortBy === "rank" && (
                       <div
-                        className="hidden sm:block cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+                        className="flex items-center justify-center w-8 h-8 -ml-1 rounded-md cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 bg-gray-100/50 sm:bg-transparent"
                         title="Drag to reorder"
                       >
                         <svg

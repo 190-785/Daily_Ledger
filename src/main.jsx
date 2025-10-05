@@ -8,6 +8,10 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 // Initialize PWA features
 initPWA();
 
+if (typeof document !== 'undefined') {
+  document.documentElement.classList.add('dark-theme');
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>

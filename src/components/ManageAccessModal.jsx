@@ -35,6 +35,10 @@ export default function ManageAccessModal({ list, onClose, onAccessRevoked }) {
         return '📆 Last Month';
       case 'currentDay':
         return '📌 Current Day';
+      case 'customDay':
+        return '📅 Specific Day';
+      case 'customMonth':
+        return '🗓️ Specific Month';
       default:
         return type;
     }
@@ -44,6 +48,29 @@ export default function ManageAccessModal({ list, onClose, onAccessRevoked }) {
     if (!allowedViews || allowedViews.length === 0) return 'No views';
     if (allowedViews.length === 2) return 'Daily & Monthly';
     return allowedViews[0] === 'daily' ? 'Daily Only' : 'Monthly Only';
+  };
+
+  const formatSnapshotDetail = (shareSettings) => {
+    if (!shareSettings) return null;
+    if (shareSettings.type === 'customDay' && shareSettings.customDay) {
+      try {
+        return `Snapshot: ${new Date(shareSettings.customDay).toLocaleDateString()}`;
+      } catch {
+        return `Snapshot Day: ${shareSettings.customDay}`;
+      }
+    }
+    if (shareSettings.type === 'customMonth' && shareSettings.customMonth) {
+      try {
+        const date = new Date(`${shareSettings.customMonth}-01`);
+        return `Snapshot: ${date.toLocaleDateString(undefined, {
+          month: 'long',
+          year: 'numeric'
+        })}`;
+      } catch {
+        return `Snapshot Month: ${shareSettings.customMonth}`;
+      }
+    }
+    return null;
   };
 
   return (
@@ -102,6 +129,11 @@ export default function ManageAccessModal({ list, onClose, onAccessRevoked }) {
                       <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded">
                         {getViewsLabel(sharedUser.shareSettings?.allowedViews)}
                       </span>
+                      {formatSnapshotDetail(sharedUser.shareSettings) && (
+                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded">
+                          {formatSnapshotDetail(sharedUser.shareSettings)}
+                        </span>
+                      )}
                     </div>
 
                     {/* Shared Date */}

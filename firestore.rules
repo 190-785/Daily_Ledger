@@ -127,17 +127,28 @@ service cloud.firestore {
         
         allow create: if isOwner(userId) &&
                         isValidString(request.resource.data.name, 1, 100) &&
-                        request.resource.data.setAmount is number &&
-                        request.resource.data.setAmount >= 0 &&
-                        request.resource.data.setAmount <= 1000000 && // Max 1M per transaction
+                        request.resource.data.defaultDailyPayment is number &&
+                        request.resource.data.defaultDailyPayment >= 0 &&
+                        request.resource.data.defaultDailyPayment <= 1000000 &&
+                        request.resource.data.monthlyTarget is number &&
+                        request.resource.data.monthlyTarget >= 0 &&
+                        request.resource.data.monthlyTarget <= 1000000 &&
+                        request.resource.data.paymentType is string &&
+                        (request.resource.data.paymentType == 'daily' || request.resource.data.paymentType == 'monthly') &&
                         request.resource.data.rank is number &&
-                        request.resource.data.rank >= 0;
+                        request.resource.data.rank >= 0 &&
+                        request.resource.data.createdOn is timestamp;
         
         allow update: if isOwner(userId) &&
                         isValidString(request.resource.data.name, 1, 100) &&
-                        request.resource.data.setAmount is number &&
-                        request.resource.data.setAmount >= 0 &&
-                        request.resource.data.setAmount <= 1000000;
+                        request.resource.data.defaultDailyPayment is number &&
+                        request.resource.data.defaultDailyPayment >= 0 &&
+                        request.resource.data.defaultDailyPayment <= 1000000 &&
+                        request.resource.data.monthlyTarget is number &&
+                        request.resource.data.monthlyTarget >= 0 &&
+                        request.resource.data.monthlyTarget <= 1000000 &&
+                        request.resource.data.paymentType is string &&
+                        (request.resource.data.paymentType == 'daily' || request.resource.data.paymentType == 'monthly');
         
         allow delete: if isOwner(userId);
       }
@@ -218,8 +229,11 @@ service cloud.firestore {
         // Users can read lists shared with them
         allow read: if isOwner(userId);
         
-        // Only the list owner can write (through their /lists path)
-        allow write: if isOwner(userId);
+        // List owner can write to any user's sharedLists when sharing
+        // This allows shareListWithUser to create the reference in recipient's collection
+        allow write: if isSignedIn() && 
+                       resource == null || // Allow creation
+                       resource.data.ownerUserId == request.auth.uid; // Only owner can update/delete
       }
       
       

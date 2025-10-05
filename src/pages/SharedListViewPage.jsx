@@ -41,7 +41,7 @@ export default function SharedListViewPage({ userId }) {
         }
 
         // Fetch members from owner's collection
-        const ownerId = sharedListData.ownerId;
+        const ownerId = sharedListData.ownerUserId || sharedListData.ownerId;
         const memberIds = sharedListData.memberIds || [];
         
         if (memberIds.length > 0) {
@@ -75,7 +75,7 @@ export default function SharedListViewPage({ userId }) {
     
     const fetchDailyData = async () => {
       try {
-        const ownerId = sharedList.ownerId;
+        const ownerId = sharedList.ownerUserId || sharedList.ownerId;
         const dailyTransactions = [];
 
         for (const member of members) {
@@ -114,7 +114,7 @@ export default function SharedListViewPage({ userId }) {
 
     const fetchMonthlyData = async () => {
       try {
-        const ownerId = sharedList.ownerId;
+        const ownerId = sharedList.ownerUserId || sharedList.ownerId;
         const monthlyStats = [];
 
         // Get year and month from selectedDate
