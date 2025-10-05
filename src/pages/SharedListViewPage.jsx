@@ -44,10 +44,16 @@ export default function SharedListViewPage({ userId }) {
         const ownerId = sharedListData.ownerUserId || sharedListData.ownerId;
         const memberIds = sharedListData.memberIds || [];
         
-        if (memberIds.length > 0) {
+        console.log('Shared list data:', sharedListData);
+        console.log('Owner ID:', ownerId);
+        console.log('Member IDs:', memberIds);
+        
+        if (memberIds.length > 0 && ownerId) {
           const membersRef = collection(db, 'users', ownerId, 'members');
           const membersQuery = query(membersRef, firestoreOrderBy('rank', 'asc'));
           const membersSnap = await getDocs(membersQuery);
+          
+          console.log('Total members fetched:', membersSnap.size);
           
           const allMembers = [];
           membersSnap.forEach((doc) => {
@@ -55,7 +61,11 @@ export default function SharedListViewPage({ userId }) {
               allMembers.push({ id: doc.id, ...doc.data() });
             }
           });
+          
+          console.log('Filtered members for this list:', allMembers);
           setMembers(allMembers);
+        } else {
+          console.warn('No member IDs or owner ID found:', { memberIds, ownerId });
         }
 
       } catch (err) {

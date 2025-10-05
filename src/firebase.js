@@ -374,6 +374,7 @@ export const shareListWithUser = async (ownerUserId, listId, shareData) => {
       name: listData.name,
       listName: listData.name,
       description: listData.description || '',
+      memberIds: listData.memberIds || [],
       shareSettings: shareSettings,
       sharedAt: serverTimestamp()
     });
