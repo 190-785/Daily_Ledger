@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, query, orderBy as firestoreOrderBy, getDocs } from "firebase/firestore";
 import { db, getUserLists, getSharedLists, createList, updateList, deleteList, shareListWithUser } from "../firebase";
@@ -22,6 +22,35 @@ export default function ListsPage({ userId }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [sharingList, setSharingList] = useState(null);
   const [managingAccessList, setManagingAccessList] = useState(null);
+  const [shareFeedback, setShareFeedback] = useState(null);
+  const feedbackTimeoutRef = useRef(null);
+
+  const dismissShareFeedback = () => {
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+      feedbackTimeoutRef.current = null;
+    }
+    setShareFeedback(null);
+  };
+
+  const showShareFeedback = (message, type = 'success') => {
+    setShareFeedback({ type, message });
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+    feedbackTimeoutRef.current = setTimeout(() => {
+      setShareFeedback(null);
+      feedbackTimeoutRef.current = null;
+    }, 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -120,8 +149,15 @@ export default function ListsPage({ userId }) {
       await fetchData(); // Refresh lists
     } catch (error) {
       console.error('Error sharing list:', error);
+      showShareFeedback(error.message || 'Failed to share list. Please try again.', 'error');
       throw error;
     }
+  };
+
+  const handleShareSuccess = (payload) => {
+    const listName = payload?.listName || sharingList?.name || 'List';
+    const username = payload?.user?.username ? `@${payload.user.username}` : 'the selected user';
+    showShareFeedback(`Shared "${listName}" with ${username}.`, 'success');
   };
 
   const handleManageAccess = (list) => {
@@ -143,6 +179,25 @@ export default function ListsPage({ userId }) {
   return (
     <FadeIn>
       <div className="max-w-7xl mx-auto">
+        {shareFeedback && (
+          <div
+            className={`mb-6 rounded-lg border p-4 sm:p-5 transition-all shadow-sm flex items-start justify-between gap-4 ${
+              shareFeedback.type === 'error'
+                ? 'bg-red-50 border-red-200 text-red-700'
+                : 'bg-green-50 border-green-200 text-green-800'
+            }`}
+          >
+            <span className="text-sm sm:text-base font-medium">{shareFeedback.message}</span>
+            <button
+              onClick={dismissShareFeedback}
+              className="text-xl leading-none font-semibold text-current/70 hover:text-current"
+              aria-label="Dismiss message"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
             <Heading level="h1" className="flex items-center gap-2">
@@ -246,6 +301,7 @@ export default function ListsPage({ userId }) {
         onClose={() => setSharingList(null)}
         list={sharingList}
         onShare={handleShareSubmit}
+        onShareSuccess={handleShareSuccess}
       />
 
       {/* Manage Access Modal */}

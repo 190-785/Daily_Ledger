@@ -3,7 +3,11 @@ import { Link } from "react-router-dom";
 
 export default function ListCard({ list, onEdit, onDelete, onShare, onManageAccess, onClick, isShared = false }) {
   const memberCount = list.memberIds?.length || 0;
-  const sharedCount = list.sharedWith?.length || 0;
+  const sharedCount = Array.isArray(list.sharedWith)
+    ? list.sharedWith.length
+    : list.sharedWith
+      ? Object.keys(list.sharedWith).length
+      : 0;
   const shareType = list.shareSettings?.type || 'dynamic';
   
   const shareTypeLabels = {

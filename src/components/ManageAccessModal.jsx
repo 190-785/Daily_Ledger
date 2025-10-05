@@ -3,6 +3,14 @@ import { revokeListAccess } from '../firebase';
 
 export default function ManageAccessModal({ list, onClose, onAccessRevoked }) {
   const [revoking, setRevoking] = useState(null);
+  const sharedUsers = Array.isArray(list.sharedWith)
+    ? list.sharedWith
+    : list.sharedWith
+      ? Object.entries(list.sharedWith).map(([userId, data]) => ({
+          userId,
+          ...data
+        }))
+      : [];
 
   const handleRevoke = async (sharedUser) => {
     if (!confirm(`Revoke access for @${sharedUser.username}?`)) return;
@@ -60,7 +68,7 @@ export default function ManageAccessModal({ list, onClose, onAccessRevoked }) {
 
         {/* Content */}
         <div className="px-6 py-4 max-h-96 overflow-y-auto">
-          {!list.sharedWith || list.sharedWith.length === 0 ? (
+          {sharedUsers.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500">No users have access to this list yet.</p>
               <p className="text-sm text-gray-400 mt-2">
@@ -69,7 +77,7 @@ export default function ManageAccessModal({ list, onClose, onAccessRevoked }) {
             </div>
           ) : (
             <div className="space-y-3">
-              {list.sharedWith.map((sharedUser, index) => (
+              {sharedUsers.map((sharedUser, index) => (
                 <div
                   key={index}
                   className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"

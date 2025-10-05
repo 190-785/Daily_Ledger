@@ -30,6 +30,14 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+const normalizeSharedWith = (sharedWithMap) => {
+  if (!sharedWithMap) return [];
+  return Object.entries(sharedWithMap).map(([userId, data]) => ({
+    userId,
+    ...data
+  }));
+};
+
 // --- Username Helper Functions ---
 
 /**
@@ -173,10 +181,13 @@ export const getUserLists = async (userId) => {
     const querySnapshot = await getDocs(q);
     
     const lists = [];
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((docSnapshot) => {
+      const data = docSnapshot.data();
       lists.push({
-        id: doc.id,
-        ...doc.data()
+        id: docSnapshot.id,
+        ...data,
+        ownerId: userId,
+        sharedWith: normalizeSharedWith(data.sharedWith)
       });
     });
     
@@ -195,11 +206,16 @@ export const getUserLists = async (userId) => {
  */
 export const getListById = async (userId, listId) => {
   try {
-    const listDoc = await getDoc(doc(db, 'users', userId, 'lists', listId));
+    const listRef = doc(db, 'users', userId, 'lists', listId);
+    const listDoc = await getDoc(listRef);
     if (listDoc.exists()) {
+      const data = listDoc.data();
       return {
         id: listDoc.id,
-        ...listDoc.data()
+        ...data,
+        ownerId: userId,
+        sharedWith: normalizeSharedWith(data.sharedWith),
+        sharedWithMap: data.sharedWith || {}
       };
     }
     return null;
@@ -255,10 +271,13 @@ export const getSharedLists = async (userId) => {
     const querySnapshot = await getDocs(q);
     
     const sharedLists = [];
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((docSnapshot) => {
+      const data = docSnapshot.data();
       sharedLists.push({
-        id: doc.id,
-        ...doc.data()
+        id: docSnapshot.id,
+        ...data,
+        name: data.name || data.listName || data.list?.name || 'Shared List',
+        ownerUsername: data.ownerUsername || data.ownerUserId || 'unknown'
       });
     });
     
@@ -322,17 +341,14 @@ export const searchUsersByEmail = async () => {
 export const shareListWithUser = async (ownerUserId, listId, shareData) => {
   try {
     const { recipientUserId, username, email, shareSettings } = shareData;
-    
-    // Get the list data
-    const list = await getListById(ownerUserId, listId);
-    if (!list) {
+    const listRef = doc(db, 'users', ownerUserId, 'lists', listId);
+    const listSnapshot = await getDoc(listRef);
+    if (!listSnapshot.exists()) {
       throw new Error('List not found');
     }
-    
-    // Update the list's sharedWith map (object, not array)
-    const listRef = doc(db, 'users', ownerUserId, 'lists', listId);
-    const currentSharedWith = list.sharedWith || {};
-    
+    const listData = listSnapshot.data();
+    const currentSharedWith = listData.sharedWith || {};
+
     await updateDoc(listRef, {
       sharedWith: {
         ...currentSharedWith,
@@ -340,21 +356,24 @@ export const shareListWithUser = async (ownerUserId, listId, shareData) => {
           username: username,
           email: email,
           accessLevel: 'view',
+          shareSettings,
           sharedAt: serverTimestamp()
         }
       },
       shareSettings: shareSettings,
       updatedAt: serverTimestamp()
     });
-    
+
+    const ownerProfile = await getUserProfile(ownerUserId);
     // Create entry in recipient's sharedLists collection
     const sharedListRef = doc(db, 'users', recipientUserId, 'sharedLists', listId);
     await setDoc(sharedListRef, {
       originalListId: listId,
       ownerUserId: ownerUserId,
-      ownerUsername: (await getUserProfile(ownerUserId))?.username || 'unknown',
-      listName: list.name,
-      description: list.description || '',
+      ownerUsername: ownerProfile?.username || 'unknown',
+      name: listData.name,
+      listName: listData.name,
+      description: listData.description || '',
       shareSettings: shareSettings,
       sharedAt: serverTimestamp()
     });
@@ -372,17 +391,16 @@ export const shareListWithUser = async (ownerUserId, listId, shareData) => {
  */
 export const revokeListAccess = async (ownerUserId, listId, recipientUserId) => {
   try {
-    // Get the list
-    const list = await getListById(ownerUserId, listId);
-    if (!list) {
+    const listRef = doc(db, 'users', ownerUserId, 'lists', listId);
+    const listSnapshot = await getDoc(listRef);
+    if (!listSnapshot.exists()) {
       throw new Error('List not found');
     }
-    
+
     // Remove user from sharedWith map (object)
-    const updatedSharedWith = { ...(list.sharedWith || {}) };
+    const updatedSharedWith = { ...(listSnapshot.data().sharedWith || {}) };
     delete updatedSharedWith[recipientUserId];
-    
-    const listRef = doc(db, 'users', ownerUserId, 'lists', listId);
+
     await updateDoc(listRef, {
       sharedWith: updatedSharedWith,
       updatedAt: serverTimestamp()

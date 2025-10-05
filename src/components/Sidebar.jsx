@@ -19,7 +19,7 @@ export default function Sidebar({ isCollapsed, onToggleCollapse }) {
   return (
     <aside
       className={`
-        fixed left-0 top-0 h-full bg-gradient-to-b from-blue-600 to-purple-700 text-white
+        hidden md:flex md:fixed left-0 top-0 h-full bg-gradient-to-b from-blue-600 to-purple-700 text-white flex-col
         transition-all duration-300 ease-in-out z-40 shadow-2xl
         ${isCollapsed ? 'w-20' : 'w-64'}
       `}

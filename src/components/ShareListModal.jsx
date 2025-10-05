@@ -1,14 +1,30 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { searchUsersByUsername } from "../firebase";
 
-export default function ShareListModal({ isOpen, onClose, list, onShare }) {
-  const [shareType, setShareType] = useState(list?.shareSettings?.type || 'dynamic');
-  const [allowedViews, setAllowedViews] = useState(list?.shareSettings?.allowedViews || ['daily', 'monthly']);
+export default function ShareListModal({ isOpen, onClose, list, onShare, onShareSuccess }) {
+  const shareSettings = list?.shareSettings;
+  const allowedViewsKey = Array.isArray(shareSettings?.allowedViews)
+    ? shareSettings.allowedViews.join('|')
+    : 'default';
+
+  const [shareType, setShareType] = useState(shareSettings?.type || 'dynamic');
+  const [allowedViews, setAllowedViews] = useState(shareSettings?.allowedViews || ['daily', 'monthly']);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [message, setMessage] = useState({ type: "", text: "" });
+
+  useEffect(() => {
+    if (isOpen) {
+      setShareType(shareSettings?.type || 'dynamic');
+      setAllowedViews(shareSettings?.allowedViews || ['daily', 'monthly']);
+      setSearchQuery("");
+      setSearchResults([]);
+      setSelectedUser(null);
+      setMessage({ type: "", text: "" });
+    }
+  }, [isOpen, list?.id, shareSettings?.type, shareSettings?.allowedViews, allowedViewsKey]);
 
   const shareTypeOptions = [
     { value: 'dynamic', label: '🟢 Live Data', description: 'Real-time updates, always current' },
@@ -74,6 +90,15 @@ export default function ShareListModal({ isOpen, onClose, list, onShare }) {
       });
       
       setMessage({ type: 'success', text: `List shared with @${selectedUser.username}!` });
+      onShareSuccess?.({
+        listId: list?.id,
+        listName: list?.name,
+        user: selectedUser,
+        shareSettings: {
+          type: shareType,
+          allowedViews: allowedViews
+        }
+      });
       setTimeout(() => {
         onClose();
       }, 1500);
