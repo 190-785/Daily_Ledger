@@ -124,33 +124,48 @@ export default function DashboardPage({ userId }) {
             <>
               {/* Daily Stats */}
               <Stagger staggerDelay={100}>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                    <CardContent className="text-center p-4">
-                      <Text size="sm" weight="semibold" className="text-blue-900 dark:text-blue-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+                  <Card className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 backdrop-blur-sm shadow-xl hover:shadow-2xl transition-all duration-300">
+                    <CardContent className="text-center p-6">
+                      <div className="flex items-center justify-center mb-2">
+                        <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                          <span className="text-2xl">👥</span>
+                        </div>
+                      </div>
+                      <Text size="sm" weight="semibold" className="text-slate-400 uppercase tracking-wider text-xs">
                         Total Members
                       </Text>
-                      <Heading level="h2" className="text-blue-950 dark:text-blue-100 mt-2">
+                      <Heading level="h2" className="text-white mt-3 text-4xl font-bold">
                         {dailyStats.totalMembers}
                       </Heading>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-                    <CardContent className="text-center p-4">
-                      <Text size="sm" weight="semibold" className="text-green-900 dark:text-green-200">
-                        Collected on {selectedDate}
+                  <Card className="bg-gradient-to-br from-emerald-900/40 to-emerald-950/40 border border-emerald-700/30 backdrop-blur-sm shadow-xl hover:shadow-2xl transition-all duration-300">
+                    <CardContent className="text-center p-6">
+                      <div className="flex items-center justify-center mb-2">
+                        <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                          <span className="text-2xl">💰</span>
+                        </div>
+                      </div>
+                      <Text size="sm" weight="semibold" className="text-emerald-300/80 uppercase tracking-wider text-xs">
+                        Collected Today
                       </Text>
-                      <Heading level="h2" className="text-green-950 dark:text-green-100 mt-2">
+                      <Heading level="h2" className="text-emerald-100 mt-3 text-4xl font-bold">
                         ₹{dailyStats.totalCollected.toLocaleString()}
                       </Heading>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-                    <CardContent className="text-center p-4">
-                      <Text size="sm" weight="semibold" className="text-orange-900 dark:text-orange-200">
+                  <Card className="bg-gradient-to-br from-amber-900/40 to-amber-950/40 border border-amber-700/30 backdrop-blur-sm shadow-xl hover:shadow-2xl transition-all duration-300">
+                    <CardContent className="text-center p-6">
+                      <div className="flex items-center justify-center mb-2">
+                        <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                          <span className="text-2xl">⏳</span>
+                        </div>
+                      </div>
+                      <Text size="sm" weight="semibold" className="text-amber-300/80 uppercase tracking-wider text-xs">
                         Didn't Pay
                       </Text>
-                      <Heading level="h2" className="text-orange-950 dark:text-orange-100 mt-2">
+                      <Heading level="h2" className="text-amber-100 mt-3 text-4xl font-bold">
                         {dailyStats.pendingMembers.length}
                       </Heading>
                     </CardContent>
@@ -159,50 +174,52 @@ export default function DashboardPage({ userId }) {
               </Stagger>
 
               {/* Payment Status for Selected Date */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div className="bg-white p-4 rounded-lg border-2 border-green-200">
-                  <h3 className="text-lg font-bold text-green-800 mb-3 flex items-center">
-                    <span className="bg-green-500 w-3 h-3 rounded-full mr-2"></span>
-                    ✅ Paid ({dailyStats.paidMembers.length})
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 border border-emerald-700/30 p-5 rounded-xl shadow-lg">
+                  <h3 className="text-lg font-bold text-emerald-300 mb-4 flex items-center">
+                    <span className="bg-emerald-500/30 w-2 h-8 rounded-full mr-3"></span>
+                    <span className="text-xl">✅</span>
+                    <span className="ml-2">Paid ({dailyStats.paidMembers.length})</span>
                   </h3>
-                  <div className="max-h-96 overflow-y-auto space-y-2">
+                  <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
                     {dailyStats.paidMembers.length > 0 ? (
                       dailyStats.paidMembers.map((member, idx) => (
                         <div
                           key={idx}
-                          className="flex justify-between items-center bg-green-50 p-3 rounded"
+                          className="flex justify-between items-center bg-emerald-900/20 border border-emerald-700/20 p-3 rounded-lg hover:bg-emerald-900/30 transition-colors"
                         >
-                          <span className="font-medium">{member.memberName}</span>
-                          <span className="text-green-700 font-bold">
+                          <span className="font-medium text-slate-200">{member.memberName}</span>
+                          <span className="text-emerald-400 font-bold">
                             ₹{member.amount.toLocaleString()}
                           </span>
                         </div>
                       ))
                     ) : (
-                      <p className="text-gray-500 text-sm py-4 text-center">
+                      <p className="text-slate-400 text-sm py-8 text-center">
                         No payments received on this date
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg border-2 border-orange-200">
-                  <h3 className="text-lg font-bold text-orange-800 mb-3 flex items-center">
-                    <span className="bg-orange-500 w-3 h-3 rounded-full mr-2"></span>
-                    ⏳ Didn't Pay ({dailyStats.pendingMembers.length})
+                <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 border border-amber-700/30 p-5 rounded-xl shadow-lg">
+                  <h3 className="text-lg font-bold text-amber-300 mb-4 flex items-center">
+                    <span className="bg-amber-500/30 w-2 h-8 rounded-full mr-3"></span>
+                    <span className="text-xl">⏳</span>
+                    <span className="ml-2">Didn't Pay ({dailyStats.pendingMembers.length})</span>
                   </h3>
-                  <div className="max-h-96 overflow-y-auto space-y-2">
+                  <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
                     {dailyStats.pendingMembers.length > 0 ? (
                       dailyStats.pendingMembers.map((member, idx) => (
                         <div
                           key={idx}
-                          className="bg-orange-50 p-3 rounded font-medium"
+                          className="bg-amber-900/20 border border-amber-700/20 p-3 rounded-lg font-medium text-slate-200 hover:bg-amber-900/30 transition-colors"
                         >
                           {member.memberName}
                         </div>
                       ))
                     ) : (
-                      <p className="text-green-600 text-sm py-4 text-center font-semibold">
+                      <p className="text-emerald-400 text-sm py-8 text-center font-semibold">
                         🎉 Everyone with an outstanding balance has paid today!
                       </p>
                     )}
@@ -212,28 +229,31 @@ export default function DashboardPage({ userId }) {
 
               {/* Transactions for Selected Date */}
               <div>
-                <h3 className="text-xl font-bold mb-3">Transactions on {selectedDate}</h3>
-                <div className="bg-white p-4 rounded-lg border">
-                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                <h3 className="text-xl font-bold mb-4 text-slate-200 flex items-center">
+                  <span className="text-2xl mr-2">📜</span>
+                  Transactions on {selectedDate}
+                </h3>
+                <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 border border-slate-700/50 p-5 rounded-xl shadow-lg">
+                  <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
                     {dailyStats.recentTransactions.length > 0 ? (
                       dailyStats.recentTransactions.map((trans, idx) => (
                         <div
                           key={idx}
-                          className="flex justify-between items-center bg-gray-50 p-3 rounded hover:bg-gray-100"
+                          className="flex justify-between items-center bg-slate-700/30 border border-slate-600/30 p-4 rounded-lg hover:bg-slate-700/50 transition-all hover:scale-[1.01]"
                         >
                           <div>
-                            <p className="font-semibold">{trans.memberName}</p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(trans.timestamp.toDate()).toLocaleTimeString()}
+                            <p className="font-semibold text-slate-200">{trans.memberName}</p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              🕐 {new Date(trans.timestamp.toDate()).toLocaleTimeString()}
                             </p>
                           </div>
-                          <p className="font-bold text-blue-600">
+                          <p className="font-bold text-blue-400 text-lg">
                             ₹{trans.amount.toLocaleString()}
                           </p>
                         </div>
                       ))
                     ) : (
-                      <p className="text-center text-gray-500 py-4">
+                      <p className="text-center text-slate-400 py-8">
                         No transactions on this date
                       </p>
                     )}
@@ -245,35 +265,55 @@ export default function DashboardPage({ userId }) {
             <>
               {/* Monthly Stats */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-blue-100 p-4 rounded-lg text-center">
-                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 p-5 rounded-xl text-center shadow-lg hover:shadow-xl transition-all">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                      <span className="text-xl">👥</span>
+                    </div>
+                  </div>
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                     Total Members
                   </h3>
-                  <p className="text-3xl font-bold text-blue-950 dark:text-blue-100 mt-2">
+                  <p className="text-3xl font-bold text-white mt-2">
                     {monthlyStats.totalMembers}
                   </p>
                 </div>
-                <div className="bg-green-100 p-4 rounded-lg text-center">
-                  <h3 className="text-sm font-semibold text-green-900 dark:text-green-200">
+                <div className="bg-gradient-to-br from-emerald-900/40 to-emerald-950/40 border border-emerald-700/30 p-5 rounded-xl text-center shadow-lg hover:shadow-xl transition-all">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                      <span className="text-xl">💰</span>
+                    </div>
+                  </div>
+                  <h3 className="text-xs font-semibold text-emerald-300/80 uppercase tracking-wider">
                     Collected This Month
                   </h3>
-                  <p className="text-3xl font-bold text-green-950 dark:text-green-100 mt-2">
+                  <p className="text-3xl font-bold text-emerald-100 mt-2">
                     ₹{monthlyStats.totalCollected.toLocaleString()}
                   </p>
                 </div>
-                <div className="bg-red-100 p-4 rounded-lg text-center">
-                  <h3 className="text-sm font-semibold text-red-900 dark:text-red-200">
+                <div className="bg-gradient-to-br from-rose-900/40 to-rose-950/40 border border-rose-700/30 p-5 rounded-xl text-center shadow-lg hover:shadow-xl transition-all">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center">
+                      <span className="text-xl">⚠️</span>
+                    </div>
+                  </div>
+                  <h3 className="text-xs font-semibold text-rose-300/80 uppercase tracking-wider">
                     Outstanding
                   </h3>
-                  <p className="text-3xl font-bold text-red-950 dark:text-red-100 mt-2">
+                  <p className="text-3xl font-bold text-rose-100 mt-2">
                     ₹{monthlyStats.totalOutstanding.toLocaleString()}
                   </p>
                 </div>
-                <div className="bg-purple-100 p-4 rounded-lg text-center">
-                  <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200">
+                <div className="bg-gradient-to-br from-violet-900/40 to-violet-950/40 border border-violet-700/30 p-5 rounded-xl text-center shadow-lg hover:shadow-xl transition-all">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center">
+                      <span className="text-xl">📊</span>
+                    </div>
+                  </div>
+                  <h3 className="text-xs font-semibold text-violet-300/80 uppercase tracking-wider">
                     Collection Rate
                   </h3>
-                  <p className="text-3xl font-bold text-purple-950 dark:text-purple-100 mt-2">
+                  <p className="text-3xl font-bold text-violet-100 mt-2">
                     {monthlyStats.collectionRate}%
                   </p>
                 </div>
@@ -281,26 +321,27 @@ export default function DashboardPage({ userId }) {
 
               {/* Members with Outstanding Dues */}
               <div>
-                <h3 className="text-xl font-bold mb-3 flex items-center">
-                  <span className="bg-red-500 w-3 h-3 rounded-full mr-2"></span>
+                <h3 className="text-xl font-bold mb-4 text-slate-200 flex items-center">
+                  <span className="bg-rose-500/30 w-2 h-8 rounded-full mr-3"></span>
+                  <span className="text-2xl mr-2">⚠️</span>
                   Members with Outstanding Dues
-                  <span className="ml-2 text-sm text-gray-500 font-normal">
+                  <span className="ml-3 text-sm text-slate-400 font-normal">
                     (Including previous months)
                   </span>
                 </h3>
-                <div className="bg-white p-4 rounded-lg border">
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 border border-rose-700/30 p-5 rounded-xl shadow-lg">
+                  <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
                     {monthlyStats.membersWithDues.length > 0 ? (
                       monthlyStats.membersWithDues.map((member, index) => (
                         <div
                           key={index}
-                          className="bg-red-50 p-4 rounded-lg hover:bg-red-100 transition-colors border border-red-200"
+                          className="bg-rose-900/20 border border-rose-700/30 p-5 rounded-lg hover:bg-rose-900/30 transition-all hover:scale-[1.01] backdrop-blur-sm"
                         >
                           <div className="flex justify-between items-center">
-                            <p className="font-bold text-lg text-gray-800">{member.memberName}</p>
+                            <p className="font-bold text-lg text-slate-200">{member.memberName}</p>
                             <div className="text-right ml-4">
-                              <p className="text-xs text-gray-500 mb-1">Total Outstanding</p>
-                              <p className="font-bold text-2xl text-red-600">
+                              <p className="text-xs text-rose-300/80 mb-1 uppercase tracking-wide">Total Outstanding</p>
+                              <p className="font-bold text-2xl text-rose-400">
                                 ₹{member.due.toLocaleString()}
                               </p>
                             </div>
@@ -308,7 +349,7 @@ export default function DashboardPage({ userId }) {
                         </div>
                       ))
                     ) : (
-                      <p className="text-center text-green-600 py-4 font-semibold">
+                      <p className="text-center text-emerald-400 py-8 font-semibold text-lg">
                         🎉 All dues are cleared (including previous months)!
                       </p>
                     )}

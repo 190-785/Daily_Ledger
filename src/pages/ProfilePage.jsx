@@ -117,20 +117,26 @@ export default function ProfilePage({ userProfile }) {
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-md max-w-2xl mx-auto">
-      <h2 className="text-3xl font-bold mb-6">Profile Settings</h2>
+    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 p-8 rounded-2xl shadow-2xl max-w-2xl mx-auto">
+      <h2 className="text-3xl font-bold mb-8 text-slate-100 flex items-center">
+        <span className="text-3xl mr-3">⚙️</span>
+        Profile Settings
+      </h2>
 
       {/* Username Display */}
       {userProfile?.username && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold">
+        <div className="mb-8 p-5 bg-gradient-to-br from-violet-900/30 to-indigo-900/30 border border-violet-700/30 rounded-xl shadow-lg">
+          <div className="flex items-center gap-4">
+            <div className="bg-gradient-to-br from-violet-600 to-indigo-600 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg">
               {userProfile.username.charAt(0).toUpperCase()}
             </div>
             <div>
-              <p className="text-sm text-gray-700 dark:text-gray-200 font-semibold">Your Username</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-gray-100">@{userProfile.username}</p>
-              <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Username cannot be changed</p>
+              <p className="text-xs text-violet-300/80 font-semibold uppercase tracking-wider">Your Username</p>
+              <p className="text-2xl font-bold text-violet-100 mt-1">@{userProfile.username}</p>
+              <p className="text-xs text-violet-300/60 mt-2 flex items-center">
+                <span className="mr-1">🔒</span>
+                Username cannot be changed
+              </p>
             </div>
           </div>
         </div>
@@ -149,11 +155,14 @@ export default function ProfilePage({ userProfile }) {
       )}
 
       {/* Update Name Section */}
-      <div className="mb-8 p-6 bg-gray-50 rounded-lg border">
-        <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Update Actual Name</h3>
+      <div className="mb-8 p-6 bg-slate-800/40 border border-slate-700/50 rounded-xl shadow-lg">
+        <h3 className="text-xl font-semibold mb-5 text-slate-100 flex items-center">
+          <span className="text-xl mr-2">✏️</span>
+          Update Actual Name
+        </h3>
         <form onSubmit={handleUpdateName} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Your Actual Name
             </label>
             <input
@@ -161,17 +170,18 @@ export default function ProfilePage({ userProfile }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter your actual name (e.g. John Doe)"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 text-slate-100 placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
               required
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-xs text-slate-400 mt-2 flex items-center">
+              <span className="mr-1">ℹ️</span>
               This is your real name that will be displayed in your profile
             </p>
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+            className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:from-violet-700 hover:to-indigo-700 disabled:from-gray-600 disabled:to-gray-700 shadow-lg transition-all hover:scale-[1.02]"
           >
             {loading ? "Updating..." : "Update Name"}
           </button>
@@ -179,11 +189,14 @@ export default function ProfilePage({ userProfile }) {
       </div>
 
       {/* Update Email Section */}
-      <div className="mb-8 p-6 bg-gray-50 rounded-lg border">
-        <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Update Email</h3>
+      <div className="mb-8 p-6 bg-slate-800/40 border border-slate-700/50 rounded-xl shadow-lg">
+        <h3 className="text-xl font-semibold mb-5 text-slate-100 flex items-center">
+          <span className="text-xl mr-2">📧</span>
+          Update Email
+        </h3>
         <form onSubmit={handleUpdateEmail} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               New Email Address
             </label>
             <input
@@ -191,12 +204,12 @@ export default function ProfilePage({ userProfile }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter new email"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 text-slate-100 placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Current Password (for verification)
             </label>
             <input
@@ -204,14 +217,14 @@ export default function ProfilePage({ userProfile }) {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Enter current password"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 text-slate-100 placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
               required
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+            className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:from-violet-700 hover:to-indigo-700 disabled:from-gray-600 disabled:to-gray-700 shadow-lg transition-all hover:scale-[1.02]"
           >
             {loading ? "Updating..." : "Update Email"}
           </button>
@@ -219,11 +232,14 @@ export default function ProfilePage({ userProfile }) {
       </div>
 
       {/* Update Password Section */}
-      <div className="mb-8 p-6 bg-gray-50 rounded-lg border">
-        <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Update Password</h3>
+      <div className="mb-8 p-6 bg-slate-800/40 border border-slate-700/50 rounded-xl shadow-lg">
+        <h3 className="text-xl font-semibold mb-5 text-slate-100 flex items-center">
+          <span className="text-xl mr-2">🔐</span>
+          Update Password
+        </h3>
         <form onSubmit={handleUpdatePassword} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Current Password
             </label>
             <input
@@ -231,12 +247,12 @@ export default function ProfilePage({ userProfile }) {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Enter current password"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 text-slate-100 placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               New Password
             </label>
             <input
@@ -244,12 +260,12 @@ export default function ProfilePage({ userProfile }) {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Enter new password (min. 6 characters)"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 text-slate-100 placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Confirm New Password
             </label>
             <input
@@ -257,14 +273,14 @@ export default function ProfilePage({ userProfile }) {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm new password"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 text-slate-100 placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
               required
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+            className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:from-violet-700 hover:to-indigo-700 disabled:from-gray-600 disabled:to-gray-700 shadow-lg transition-all hover:scale-[1.02]"
           >
             {loading ? "Updating..." : "Update Password"}
           </button>
@@ -272,19 +288,25 @@ export default function ProfilePage({ userProfile }) {
       </div>
 
       {/* Account Info */}
-      <div className="p-6 bg-blue-50 rounded-lg border border-blue-200">
-        <h3 className="text-lg font-semibold mb-3 text-blue-800 dark:text-blue-200">
+      <div className="p-6 bg-gradient-to-br from-blue-900/30 to-cyan-900/30 border border-blue-700/30 rounded-xl shadow-lg">
+        <h3 className="text-lg font-semibold mb-4 text-blue-300 flex items-center">
+          <span className="text-xl mr-2">ℹ️</span>
           Account Information
         </h3>
-        <p className="text-sm text-gray-700 dark:text-gray-200">
-          <strong>Current Email:</strong> {user?.email}
-        </p>
-        <p className="text-sm text-gray-700 dark:text-gray-200 mt-2">
-          <strong>Account Created:</strong>{" "}
-          {user?.metadata?.creationTime
-            ? new Date(user.metadata.creationTime).toLocaleDateString()
-            : "N/A"}
-        </p>
+        <div className="space-y-3">
+          <div className="bg-slate-800/40 p-3 rounded-lg">
+            <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Current Email</p>
+            <p className="text-slate-100 font-medium">{user?.email}</p>
+          </div>
+          <div className="bg-slate-800/40 p-3 rounded-lg">
+            <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Account Created</p>
+            <p className="text-slate-100 font-medium">
+              {user?.metadata?.creationTime
+                ? new Date(user.metadata.creationTime).toLocaleDateString()
+                : "N/A"}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
