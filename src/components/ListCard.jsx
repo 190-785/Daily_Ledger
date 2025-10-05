@@ -86,8 +86,8 @@ export default function ListCard({ list, onEdit, onDelete, onShare, onManageAcce
         )}
 
         {isShared && (
-          <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-            <span className="text-xs">📧 Shared by @{list.ownerUsername}</span>
+          <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-900 rounded-full">
+            <span className="text-xs font-medium">📧 Shared by @{list.ownerUsername}</span>
           </div>
         )}
       </div>

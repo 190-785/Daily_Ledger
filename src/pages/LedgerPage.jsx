@@ -369,13 +369,13 @@ export default function LedgerPage({ userId }) {
                             <div className="flex items-center space-x-2">
                               <button
                                 onClick={() => handleStartEdit(t)}
-                                className="text-sm bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-1 px-3 rounded-lg"
+                                className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-4 rounded-lg transition-colors"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => handleDeleteTransaction(t.id)}
-                                className="text-sm bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded-lg"
+                                className="text-sm bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-4 rounded-lg transition-colors"
                               >
                                 Delete
                               </button>

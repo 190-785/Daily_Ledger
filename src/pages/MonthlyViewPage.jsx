@@ -134,12 +134,12 @@ export default function MonthlyViewPage({ userId }) {
                     : "bg-green-100"
                 }`}
               >
-                <h4 className="text-sm font-semibold">Previous Balance</h4>
+                <h4 className="text-sm font-semibold text-gray-900">Previous Balance</h4>
                 <p
                   className={`text-xl font-bold ${
                     monthlyData.balanceBroughtForward < 0
-                      ? "text-red-800"
-                      : "text-green-800"
+                      ? "text-red-900"
+                      : "text-green-900"
                   }`}
                 >
                   ₹
@@ -150,18 +150,18 @@ export default function MonthlyViewPage({ userId }) {
                 </p>
               </div>
               <div className="bg-yellow-100 p-4 rounded-lg">
-                <h4 className="text-sm font-semibold text-yellow-800">
+                <h4 className="text-sm font-semibold text-yellow-900">
                   Monthly Target
                 </h4>
-                <p className="text-xl font-bold text-yellow-900">
+                <p className="text-xl font-bold text-yellow-950">
                   ₹{monthlyData.totalDue.toLocaleString()}
                 </p>
               </div>
               <div className="bg-blue-100 p-4 rounded-lg">
-                <h4 className="text-sm font-semibold text-blue-800">
+                <h4 className="text-sm font-semibold text-blue-900">
                   Paid This Month
                 </h4>
-                <p className="text-xl font-bold text-blue-900">
+                <p className="text-xl font-bold text-blue-950">
                   ₹{monthlyData.totalPaid.toLocaleString()}
                 </p>
               </div>
@@ -172,12 +172,12 @@ export default function MonthlyViewPage({ userId }) {
                     : "bg-green-100"
                 }`}
               >
-                <h4 className="text-sm font-semibold">Final Balance</h4>
+                <h4 className="text-sm font-semibold text-gray-900">Final Balance</h4>
                 <p
                   className={`text-xl font-bold ${
                     monthlyData.finalBalanceDue > 0
-                      ? "text-red-800"
-                      : "text-green-800"
+                      ? "text-red-900"
+                      : "text-green-900"
                   }`}
                 >
                   ₹{Math.abs(monthlyData.finalBalanceDue).toLocaleString()}

@@ -32,6 +32,7 @@ export default function SharedListViewPage({ userId }) {
         }
 
         const sharedListData = { id: sharedListSnap.id, ...sharedListSnap.data() };
+        console.log('Shared list data:', sharedListData);
         setSharedList(sharedListData);
 
         // Set default active tab based on allowed views
@@ -41,19 +42,38 @@ export default function SharedListViewPage({ userId }) {
         }
 
         // Fetch members from owner's collection
+        // Support both ownerUserId and ownerId for backwards compatibility
         const ownerId = sharedListData.ownerUserId || sharedListData.ownerId;
         const memberIds = sharedListData.memberIds || [];
         
-        console.log('Shared list data:', sharedListData);
         console.log('Owner ID:', ownerId);
         console.log('Member IDs:', memberIds);
         
-        if (memberIds.length > 0 && ownerId) {
+        if (!ownerId) {
+          console.error('No owner ID found in shared list data');
+          setError('Invalid shared list configuration - missing owner ID');
+          return;
+        }
+
+        if (memberIds.length === 0) {
+          console.warn('No member IDs found in shared list');
+          setMembers([]);
+          return;
+        }
+
+        // Fetch members from the owner's collection
+        try {
           const membersRef = collection(db, 'users', ownerId, 'members');
           const membersQuery = query(membersRef, firestoreOrderBy('rank', 'asc'));
           const membersSnap = await getDocs(membersQuery);
           
-          console.log('Total members fetched:', membersSnap.size);
+          console.log('Total members fetched from owner:', membersSnap.size);
+          
+          if (membersSnap.empty) {
+            console.warn('Owner has no members in their collection');
+            setMembers([]);
+            return;
+          }
           
           const allMembers = [];
           membersSnap.forEach((doc) => {
@@ -63,14 +83,36 @@ export default function SharedListViewPage({ userId }) {
           });
           
           console.log('Filtered members for this list:', allMembers);
+          
+          if (allMembers.length === 0) {
+            console.warn('None of the member IDs matched actual members in owner collection');
+            console.warn('Expected member IDs:', memberIds);
+            console.warn('Available member IDs:', membersSnap.docs.map(d => d.id));
+          }
+          
           setMembers(allMembers);
-        } else {
-          console.warn('No member IDs or owner ID found:', { memberIds, ownerId });
+        } catch (memberError) {
+          console.error('Error fetching members:', memberError);
+          console.error('Error code:', memberError.code);
+          console.error('Error message:', memberError.message);
+          
+          if (memberError.code === 'permission-denied') {
+            setError('You do not have permission to view the members of this list. The list owner may need to update their sharing settings.');
+          } else {
+            setError('Failed to load members. Please try again.');
+          }
         }
 
       } catch (err) {
         console.error('Error fetching shared list:', err);
-        setError('Failed to load shared list. Please try again.');
+        console.error('Error code:', err.code);
+        console.error('Error message:', err.message);
+        
+        if (err.code === 'permission-denied') {
+          setError('Access denied. This list may have been unshared or you do not have permission.');
+        } else {
+          setError('Failed to load shared list. Please try again.');
+        }
       } finally {
         setLoading(false);
       }
@@ -81,7 +123,7 @@ export default function SharedListViewPage({ userId }) {
 
   // Fetch daily data when date changes
   useEffect(() => {
-    if (!sharedList || !members.length) return;
+    if (!sharedList || members.length === 0) return;
     
     const fetchDailyData = async () => {
       try {
@@ -107,9 +149,11 @@ export default function SharedListViewPage({ userId }) {
           });
         }
 
+        console.log('Daily transactions fetched:', dailyTransactions.length);
         setDailyData(dailyTransactions);
       } catch (err) {
         console.error('Error fetching daily data:', err);
+        console.error('Error code:', err.code);
       }
     };
 
@@ -120,7 +164,7 @@ export default function SharedListViewPage({ userId }) {
 
   // Fetch monthly data
   useEffect(() => {
-    if (!sharedList || !members.length || activeTab !== 'monthly') return;
+    if (!sharedList || members.length === 0 || activeTab !== 'monthly') return;
 
     const fetchMonthlyData = async () => {
       try {
@@ -141,12 +185,23 @@ export default function SharedListViewPage({ userId }) {
               memberName: member.name,
               ...statsSnap.data()
             });
+          } else {
+            // Include member even if no stats exist
+            monthlyStats.push({
+              memberId: member.id,
+              memberName: member.name,
+              totalCredit: 0,
+              totalDebit: 0,
+              transactionCount: 0
+            });
           }
         }
 
+        console.log('Monthly stats fetched:', monthlyStats.length);
         setMonthlyData(monthlyStats);
       } catch (err) {
         console.error('Error fetching monthly data:', err);
+        console.error('Error code:', err.code);
       }
     };
 
@@ -169,6 +224,17 @@ export default function SharedListViewPage({ userId }) {
         return lastMonth.toISOString().split('T')[0];
       }
       
+      case 'customDay':
+        return sharedList.shareSettings?.customDay || selectedDate;
+      
+      case 'customMonth': {
+        const customMonth = sharedList.shareSettings?.customMonth;
+        if (customMonth) {
+          return `${customMonth}-01`;
+        }
+        return selectedDate;
+      }
+      
       case 'dynamic':
       default:
         return selectedDate;
@@ -183,9 +249,9 @@ export default function SharedListViewPage({ userId }) {
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
     }).format(amount);
   };
 
@@ -204,10 +270,10 @@ export default function SharedListViewPage({ userId }) {
       <div className="max-w-6xl mx-auto p-6">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <div className="text-red-700 font-semibold mb-2">Error</div>
-          <p className="text-red-600">{error || 'Failed to load shared list.'}</p>
+          <p className="text-red-600 mb-4">{error || 'Failed to load shared list.'}</p>
           <button
             onClick={() => navigate('/lists')}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
           >
             Back to Lists
           </button>
@@ -221,11 +287,15 @@ export default function SharedListViewPage({ userId }) {
   const isDynamic = shareType === 'dynamic';
   const isCurrentDay = shareType === 'currentDay';
   const isLastMonth = shareType === 'lastMonth';
+  const isCustomDay = shareType === 'customDay';
+  const isCustomMonth = shareType === 'customMonth';
 
   const shareTypeInfo = {
     dynamic: { label: '🔄 Dynamic', desc: 'Full access with date selection' },
     lastMonth: { label: '📅 Last Month', desc: 'Fixed to previous month' },
-    currentDay: { label: '📍 Current Day', desc: 'Live view of today only' }
+    currentDay: { label: '📍 Current Day', desc: 'Live view of today only' },
+    customDay: { label: '📆 Custom Day', desc: 'Fixed to specific date' },
+    customMonth: { label: '📊 Custom Month', desc: 'Fixed to specific month' }
   };
 
   return (
@@ -244,7 +314,7 @@ export default function SharedListViewPage({ userId }) {
         )}
         <div className="flex flex-wrap gap-3 text-sm">
           <div className="bg-white/20 rounded-full px-3 py-1">
-            👤 Shared by @{sharedList.ownerUsername}
+            👤 Shared by @{sharedList.ownerUsername || 'Unknown'}
           </div>
           <div className="bg-white/20 rounded-full px-3 py-1">
             {shareTypeInfo[shareType]?.label || shareType}
@@ -259,6 +329,21 @@ export default function SharedListViewPage({ userId }) {
           </div>
         )}
       </div>
+
+      {/* No Members Warning */}
+      {members.length === 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-2 text-yellow-700">
+            <span className="text-2xl">⚠️</span>
+            <div>
+              <div className="font-medium">No Members Found</div>
+              <div className="text-sm text-yellow-600 mt-1">
+                This list has no members or the members couldn't be loaded. The list owner may need to add members or update sharing permissions.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Date Selector (only for dynamic) */}
       {isDynamic && (
@@ -275,7 +360,7 @@ export default function SharedListViewPage({ userId }) {
         </div>
       )}
 
-      {/* Fixed Date Display (for currentDay and lastMonth) */}
+      {/* Fixed Date Display (for non-dynamic shares) */}
       {!isDynamic && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <div className="flex items-center gap-2 text-blue-700">
@@ -283,46 +368,24 @@ export default function SharedListViewPage({ userId }) {
             <span>
               {isCurrentDay && 'Today'}
               {isLastMonth && 'Last Month'}
+              {isCustomDay && 'Custom Date'}
+              {isCustomMonth && 'Custom Month'}
               {' '}({getAllowedDate()})
             </span>
           </div>
         </div>
       )}
 
-      {/* Tabs (if both views allowed) */}
-      {allowedViews.length === 2 && (
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setActiveTab('daily')}
-            className={`flex-1 px-6 py-3 font-medium rounded-lg transition-colors ${
-              activeTab === 'daily'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            📊 Daily View
-          </button>
-          <button
-            onClick={() => setActiveTab('monthly')}
-            className={`flex-1 px-6 py-3 font-medium rounded-lg transition-colors ${
-              activeTab === 'monthly'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            📈 Monthly View
-          </button>
-        </div>
-      )}
+
 
       {/* Content */}
-      {allowedViews.includes(activeTab) ? (
+      {members.length > 0 && allowedViews.includes(activeTab) ? (
         <>
           {/* Daily View */}
           {activeTab === 'daily' && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-800 mb-4">
-                Daily Transactions - {new Date(selectedDate).toLocaleDateString('en-US', { 
+                Daily Transactions - {new Date(getAllowedDate()).toLocaleDateString('en-US', { 
                   weekday: 'long', 
                   year: 'numeric', 
                   month: 'long', 
@@ -341,9 +404,9 @@ export default function SharedListViewPage({ userId }) {
                     <div
                       key={transaction.id}
                       className={`p-4 rounded-lg border ${
-                        transaction.type === 'credit'
-                          ? 'bg-green-50 border-green-200'
-                          : 'bg-red-50 border-red-200'
+                        transaction.type === 'debit'
+                          ? 'bg-red-50 border-red-200'
+                          : 'bg-green-50 border-green-200'
                       }`}
                     >
                       <div className="flex justify-between items-start">
@@ -361,9 +424,9 @@ export default function SharedListViewPage({ userId }) {
                           </div>
                         </div>
                         <div className={`text-lg font-bold ${
-                          transaction.type === 'credit' ? 'text-green-700' : 'text-red-700'
+                          transaction.type === 'debit' ? 'text-red-700' : 'text-green-700'
                         }`}>
-                          {transaction.type === 'credit' ? '+' : '-'}
+                          {transaction.type === 'debit' ? '-' : '+'}
                           {formatCurrency(transaction.amount)}
                         </div>
                       </div>
@@ -378,7 +441,7 @@ export default function SharedListViewPage({ userId }) {
           {activeTab === 'monthly' && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-800 mb-4">
-                Monthly Statistics - {new Date(selectedDate).toLocaleDateString('en-US', { 
+                Monthly Statistics - {new Date(getAllowedDate()).toLocaleDateString('en-US', { 
                   year: 'numeric', 
                   month: 'long'
                 })}
@@ -436,6 +499,13 @@ export default function SharedListViewPage({ userId }) {
             </div>
           )}
         </>
+      ) : members.length === 0 ? (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+          <div className="text-gray-500 mb-2">Unable to load list data</div>
+          <p className="text-sm text-gray-400">
+            Please contact the list owner if this issue persists.
+          </p>
+        </div>
       ) : (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
           <div className="text-yellow-700 font-semibold mb-2">Access Restricted</div>

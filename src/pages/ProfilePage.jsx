@@ -128,9 +128,9 @@ export default function ProfilePage({ userProfile }) {
               {userProfile.username.charAt(0).toUpperCase()}
             </div>
             <div>
-              <p className="text-sm text-gray-600 font-medium">Your Username</p>
-              <p className="text-xl font-bold text-gray-800">@{userProfile.username}</p>
-              <p className="text-xs text-gray-500 mt-1">Username cannot be changed</p>
+              <p className="text-sm text-gray-700 font-semibold">Your Username</p>
+              <p className="text-xl font-bold text-gray-900">@{userProfile.username}</p>
+              <p className="text-xs text-gray-600 mt-1">Username cannot be changed</p>
             </div>
           </div>
         </div>

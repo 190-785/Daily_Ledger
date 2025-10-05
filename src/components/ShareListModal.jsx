@@ -8,7 +8,7 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
     : 'default';
 
   const [shareType, setShareType] = useState(shareSettings?.type || 'dynamic');
-  const [allowedViews, setAllowedViews] = useState(shareSettings?.allowedViews || ['daily', 'monthly']);
+  const [allowedViews, setAllowedViews] = useState(shareSettings?.allowedViews || ['daily']);
   const [customDay, setCustomDay] = useState(shareSettings?.customDay || '');
   const [customMonth, setCustomMonth] = useState(shareSettings?.customMonth || '');
   const [searchQuery, setSearchQuery] = useState("");
@@ -20,7 +20,7 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
   useEffect(() => {
     if (isOpen) {
       setShareType(shareSettings?.type || 'dynamic');
-      setAllowedViews(shareSettings?.allowedViews || ['daily', 'monthly']);
+      setAllowedViews(shareSettings?.allowedViews || ['daily']);
       setSearchQuery("");
       setSearchResults([]);
       setSelectedUser(null);
@@ -254,19 +254,6 @@ export default function ShareListModal({ isOpen, onClose, list, onShare, onShare
                 <div>
                   <div className="font-medium text-gray-800">📝 Daily View</div>
                   <div className="text-xs text-gray-600">View daily transactions and payments</div>
-                </div>
-              </label>
-              <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="checkbox"
-                  checked={allowedViews.includes('monthly')}
-                  onChange={() => handleToggleView('monthly')}
-                  className="w-5 h-5 text-blue-600 rounded"
-                  disabled={isCustomDay || isCustomMonth}
-                />
-                <div>
-                  <div className="font-medium text-gray-800">📅 Monthly View</div>
-                  <div className="text-xs text-gray-600">View monthly summaries and stats</div>
                 </div>
               </label>
             </div>

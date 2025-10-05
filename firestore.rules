@@ -131,9 +131,8 @@ service cloud.firestore {
       
       match /members/{memberId} {
         // Owner has full access to their members
-        // Users with shared list access can read members
-        allow read: if isOwner(userId) || 
-                      isSignedIn();  // Allow authenticated users to read for shared lists
+        // Authenticated users can read members for shared list access
+        allow read: if isOwner(userId) || isSignedIn();
         
         allow create: if isOwner(userId) &&
                         isValidString(request.resource.data.name, 1, 100) &&
@@ -170,9 +169,8 @@ service cloud.firestore {
       
       match /transactions/{transactionId} {
         // Owner can read all their transactions
-        // Users with shared list access can read transactions
-        allow read: if isOwner(userId) || 
-                      isSignedIn();  // Allow authenticated users to read for shared lists
+        // Authenticated users can read transactions for shared lists
+        allow read: if isOwner(userId) || isSignedIn();
         
         // Create transaction with validation
         allow create: if isOwner(userId) &&
@@ -242,10 +240,12 @@ service cloud.firestore {
         allow read: if isOwner(userId);
         
         // List owner can write to any user's sharedLists when sharing
-        // This allows shareListWithUser to create the reference in recipient's collection
-        allow write: if isSignedIn() && 
+        // Support both ownerUserId and ownerId for backwards compatibility
+        allow write: if isSignedIn() && (
                        resource == null || // Allow creation
-                       resource.data.ownerUserId == request.auth.uid; // Only owner can update/delete
+                       resource.data.ownerUserId == request.auth.uid || // Only owner can update/delete
+                       resource.data.ownerId == request.auth.uid // Support legacy property name
+                     );
       }
       
       
