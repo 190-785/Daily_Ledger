@@ -15,15 +15,38 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 
+// Load Firebase config from Vite environment variables.
+// See `.env.example` for required keys. Using import.meta.env preserves
+// values injected at build time by Vite and prevents committing secrets.
 const firebaseConfig = {
-  apiKey: "AIzaSyBASO27tHvmYgcWbCFHkR7g38IkYPF5VlY",
-  authDomain: "daily-collection-ledger.firebaseapp.com",
-  projectId: "daily-collection-ledger",
-  storageBucket: "daily-collection-ledger.firebasestorage.app",
-  messagingSenderId: "721209757989",
-  appId: "1:721209757989:web:9927ea2f23df2467cecacc",
-  measurementId: "G-F7VJ9C1P1M"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
+
+// Quick runtime check to help developers catch missing env vars early.
+const _requiredKeys = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID'
+];
+
+const missing = _requiredKeys.filter((k) => !import.meta.env[k]);
+if (missing.length) {
+  // In CI or production builds env vars should be set; log an error to help local devs.
+  // Don't throw here to avoid breaking non-Firebase flows, but provide a clear message.
+  console.error(
+    `Missing required Firebase env vars: ${missing.join(', ')}. ` +
+      'Create a local `.env` from `.env.example` and add the values, or set them in your hosting provider.'
+  );
+}
 
 // --- Initialize Firebase ---
 const app = initializeApp(firebaseConfig);

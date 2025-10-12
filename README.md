@@ -124,18 +124,23 @@
 4. Register your app (name: "Daily Ledger Web")
 5. Copy the Firebase config object
 
-6. **Update `src/firebase.js`** with your config:
-   ```javascript
-   const firebaseConfig = {
-     apiKey: "YOUR_API_KEY",
-     authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-     projectId: "YOUR_PROJECT_ID",
-     storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-     messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-     appId: "YOUR_APP_ID",
-     measurementId: "YOUR_MEASUREMENT_ID"
-   };
+6. Add Firebase config via environment variables
+
+   Copy `.env.example` to `.env` at the project root and fill in your Firebase values. Vite exposes vars prefixed with `VITE_` to the client.
+
+   Example (.env):
+
+   ```env
+   VITE_FIREBASE_API_KEY=AIzaSy...
+   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your-project-id
+   VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=...
+   VITE_FIREBASE_APP_ID=1:...:web:...
+   VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXX
    ```
+
+   The app automatically loads these values from `import.meta.env` at runtime; you don't need to edit `src/firebase.js` directly.
 
 ### 6. Add Authorized Domains
 

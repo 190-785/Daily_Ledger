@@ -105,12 +105,17 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex flex-col justify-center items-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col justify-center items-center p-4">
       <FadeIn duration={400}>
-        <Card variant="elevated" className="w-full max-w-lg p-2">
+        <Card variant="elevated" className="w-full max-w-lg p-2 bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-slate-700/50 backdrop-blur-xl shadow-2xl">
           <CardHeader className="pb-4">
-            <CardTitle className="text-center text-3xl">Create Your Account</CardTitle>
-            <Text size="base" variant="muted" className="text-center mt-3">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <span className="text-3xl">✨</span>
+              </div>
+            </div>
+            <CardTitle className="text-center text-3xl text-slate-100">Create Your Account</CardTitle>
+            <Text size="base" className="text-center mt-3 text-slate-300">
               Join Daily Ledger to track your finances
             </Text>
           </CardHeader>
@@ -194,11 +199,11 @@ export default function SignupPage() {
               />
               
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
-                  <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <div className="bg-gradient-to-br from-rose-900/40 to-red-900/40 border border-rose-700/50 rounded-xl p-4 flex items-start gap-3 shadow-lg animate-slideInDown">
+                  <svg className="w-6 h-6 text-rose-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  <Text size="sm" variant="error">{error}</Text>
+                  <Text size="sm" className="text-rose-200 font-medium">{error}</Text>
                 </div>
               )}
               
@@ -213,12 +218,14 @@ export default function SignupPage() {
                 {loading ? "Creating Account..." : "Sign Up"}
               </Button>
               
-              <Text size="sm" variant="muted" className="text-center">
-                Already have an account?{" "}
-                <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium hover:underline transition-colors">
-                  Log In
-                </Link>
-              </Text>
+              <div className="pt-4 border-t border-slate-700/50">
+                <Text size="sm" className="text-center text-slate-400">
+                  Already have an account?{" "}
+                  <Link to="/login" className="text-violet-400 hover:text-violet-300 font-semibold hover:underline transition-colors">
+                    Log In
+                  </Link>
+                </Text>
+              </div>
             </form>
           </CardContent>
         </Card>
