@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "/src/firebase.js";
 import { updateDailyStats, updateMonthlyStats } from "/src/utils/statsCalculator.js";
 import Card, { CardHeader, CardTitle, CardContent } from "/src/components/Card.jsx";
@@ -7,6 +7,7 @@ import { Heading, Text } from "/src/components/Typography.jsx";
 import Button from "/src/components/Button.jsx";
 import LoadingSpinner, { EmptyState } from "/src/components/LoadingSpinner.jsx";
 import { FadeIn, Stagger } from "/src/components/Animations.jsx";
+import { exportMonthlyToExcel } from "/src/utils/excelExport.js";
 
 const getMonthYear = (date = new Date()) => date.toISOString().slice(0, 7);
 const getTodayDate = () => new Date().toISOString().split("T")[0];
@@ -24,6 +25,31 @@ export default function DashboardPage({ userId }) {
   });
   const [monthlyStats, setMonthlyStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState([]);
+  const [allTransactions, setAllTransactions] = useState([]);
+
+  // Load members and transactions
+  useEffect(() => {
+    const membersQuery = query(collection(db, "users", userId, "members"));
+    const unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
+      const sortedMembers = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .sort((a, b) => (a.rank || 0) - (b.rank || 0));
+      setMembers(sortedMembers);
+    });
+
+    const transQuery = query(collection(db, "users", userId, "transactions"));
+    const unsubscribeTrans = onSnapshot(transQuery, (snapshot) => {
+      setAllTransactions(
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
+    });
+
+    return () => {
+      unsubscribeMembers();
+      unsubscribeTrans();
+    };
+  }, [userId]);
 
   // This function will now force a recalculation every time, ignoring the cache.
   const calculateDailyStats = useCallback(async () => {
@@ -70,6 +96,36 @@ export default function DashboardPage({ userId }) {
     }
   }, [viewTab, selectedDate, selectedMonth, calculateDailyStats, calculateMonthlyStats]);
 
+  const handleExportToExcel = () => {
+    if (viewTab !== "monthly") {
+      alert('Please switch to Monthly View to export data');
+      return;
+    }
+
+    if (!selectedMonth) {
+      alert('Please select a month to export');
+      return;
+    }
+
+    // Get all transactions for the selected month (across all members)
+    const startDate = new Date(`${selectedMonth}-01T00:00:00Z`);
+    const monthTransactions = allTransactions.filter((t) => {
+      const tDate = t.timestamp.toDate();
+      return (
+        tDate.getFullYear() === startDate.getFullYear() &&
+        tDate.getMonth() === startDate.getMonth()
+      );
+    });
+
+    // Export to Excel
+    exportMonthlyToExcel({
+      members,
+      transactions: monthTransactions,
+      monthYear: selectedMonth,
+      listName: 'Daily Ledger'
+    });
+  };
+
   return (
     <FadeIn>
       <Card variant="elevated" className="p-6">
@@ -86,12 +142,24 @@ export default function DashboardPage({ userId }) {
                 />
               )}
               {viewTab === "monthly" && (
-                <input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <>
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleExportToExcel}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                    title="Export monthly data to Excel"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="hidden sm:inline">Export to Excel</span>
+                  </button>
+                </>
               )}
             </div>
           </div>

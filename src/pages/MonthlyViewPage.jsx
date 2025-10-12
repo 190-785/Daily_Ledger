@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../firebase";
 import { collection, onSnapshot, query } from "firebase/firestore";
+import { exportMonthlyToExcel } from "../utils/excelExport";
 
 const getMonthYear = (date = new Date()) => date.toISOString().slice(0, 7);
 
@@ -98,9 +99,46 @@ export default function MonthlyViewPage({ userId }) {
     calculateMonthlyData();
   }, [calculateMonthlyData]);
 
+  const handleExportToExcel = () => {
+    if (!selectedMonth) {
+      alert('Please select a month to export');
+      return;
+    }
+
+    // Get all transactions for the selected month (across all members)
+    const startDate = new Date(`${selectedMonth}-01T00:00:00Z`);
+    const monthTransactions = allTransactions.filter((t) => {
+      const tDate = t.timestamp.toDate();
+      return (
+        tDate.getFullYear() === startDate.getFullYear() &&
+        tDate.getMonth() === startDate.getMonth()
+      );
+    });
+
+    // Export to Excel
+    exportMonthlyToExcel({
+      members,
+      transactions: monthTransactions,
+      monthYear: selectedMonth,
+      listName: 'Daily Ledger'
+    });
+  };
+
   return (
     <div className="bg-white p-6 rounded-xl shadow-md">
-      <h2 className="text-3xl font-bold mb-4">Monthly Statement</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-3xl font-bold">Monthly Statement</h2>
+        <button
+          onClick={handleExportToExcel}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+          title="Export monthly data to Excel"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Export to Excel
+        </button>
+      </div>
       <div className="flex flex-wrap gap-4 items-center mb-6 bg-gray-50 p-4 rounded-lg">
         <select
           value={selectedMemberId}
