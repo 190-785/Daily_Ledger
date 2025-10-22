@@ -203,7 +203,7 @@ export default function DashboardPage({ userId }) {
                       <Text size="sm" weight="semibold" className="text-slate-400 uppercase tracking-wider text-xs">
                         Total Members
                       </Text>
-                      <Heading level="h2" className="text-white mt-3 text-4xl font-bold">
+                      <Heading level="h2" className="text-black mt-3 text-4xl font-bold">
                         {dailyStats.totalMembers}
                       </Heading>
                     </CardContent>
