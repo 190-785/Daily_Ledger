@@ -193,17 +193,17 @@ export default function DashboardPage({ userId }) {
               {/* Daily Stats */}
               <Stagger staggerDelay={100}>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-                  <Card className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 backdrop-blur-sm shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <Card className="bg-gradient-to-br from-blue-900/40 to-blue-950/40 border border-blue-700/30 backdrop-blur-sm shadow-xl hover:shadow-2xl transition-all duration-300">
                     <CardContent className="text-center p-6">
                       <div className="flex items-center justify-center mb-2">
                         <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
                           <span className="text-2xl">👥</span>
                         </div>
                       </div>
-                      <Text size="sm" weight="semibold" className="text-slate-400 uppercase tracking-wider text-xs">
+                      <Text size="sm" weight="semibold" className="text-blue-300/80 uppercase tracking-wider text-xs">
                         Total Members
                       </Text>
-                      <Heading level="h2" className="text-black mt-3 text-4xl font-bold">
+                      <Heading level="h2" className="text-blue-100 mt-3 text-4xl font-bold">
                         {dailyStats.totalMembers}
                       </Heading>
                     </CardContent>
