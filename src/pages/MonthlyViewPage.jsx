@@ -191,7 +191,7 @@ export default function MonthlyViewPage({ userId }) {
                 <h4 className="text-sm font-semibold text-yellow-900">
                   Monthly Target
                 </h4>
-                <p className="text-xl font-bold text-yellow-950">
+                <p className="text-xl font-bold text-gray-900">
                   ₹{monthlyData.totalDue.toLocaleString()}
                 </p>
               </div>
