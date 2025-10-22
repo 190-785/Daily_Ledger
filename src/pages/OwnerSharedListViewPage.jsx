@@ -53,7 +53,6 @@ export default function OwnerSharedListViewPage({ userId }) {
             allMembers.push({ id: doc.id, ...doc.data() });
           }
         });
-        
         setMembers(allMembers);
 
       } catch (err) {

@@ -31,11 +31,11 @@ export default function ListCard({ list, onEdit, onDelete, onShare, onManageAcce
       <div className="mb-3">
         <div className="flex justify-between items-start gap-2 mb-2">
           <div className="flex-1 min-w-0">
-            <h3 className={`text-base sm:text-lg font-bold mb-1 break-words ${
-              isShared ? 'text-gray-900' : 'text-gray-800'
-            }`}>{list.name}</h3>
+            <h3 className="text-base sm:text-lg font-bold mb-1 break-words text-gray-900">
+              {list.name}
+            </h3>
             {list.description && (
-              <p className="text-sm text-gray-700 mb-2 break-words">{list.description}</p>
+              <p className="text-sm text-gray-600 mb-2 break-words">{list.description}</p>
             )}
           </div>
         </div>
@@ -83,13 +83,13 @@ export default function ListCard({ list, onEdit, onDelete, onShare, onManageAcce
       </div>
 
       <div className="flex flex-wrap gap-2 sm:gap-3 text-sm">
-        <div className="flex items-center gap-1 text-gray-800">
+        <div className="flex items-center gap-1 text-gray-900">
           <span className="font-semibold">👥 {memberCount}</span>
           <span className="text-xs sm:text-sm">member{memberCount !== 1 ? 's' : ''}</span>
         </div>
 
         {!isShared && sharedCount > 0 && (
-          <div className="flex items-center gap-1 text-gray-800">
+          <div className="flex items-center gap-1 text-gray-900">
             <span className="font-semibold">🔗 {sharedCount}</span>
             <span className="text-xs sm:text-sm">share{sharedCount !== 1 ? 's' : ''}</span>
           </div>
@@ -97,7 +97,7 @@ export default function ListCard({ list, onEdit, onDelete, onShare, onManageAcce
 
         {!isShared && (
           <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full">
-            <span className="text-xs font-medium text-gray-800 whitespace-nowrap">{shareTypeLabels[shareType]}</span>
+            <span className="text-xs font-medium text-gray-900 whitespace-nowrap">{shareTypeLabels[shareType]}</span>
           </div>
         )}
 
