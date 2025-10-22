@@ -21,83 +21,89 @@ export default function ListCard({ list, onEdit, onDelete, onShare, onManageAcce
 
   return (
     <div 
-      className={`bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow p-5 ${
-        isShared ? 'cursor-pointer hover:border-blue-400' : ''
+      className={`bg-white border border-gray-200 rounded-lg shadow-sm transition-all p-4 sm:p-5 ${
+        isShared 
+          ? 'cursor-pointer hover:shadow-lg hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100' 
+          : 'hover:shadow-md'
       }`}
       onClick={isShared ? () => onClick?.(list) : undefined}
     >
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex-1">
-          <h3 className="text-lg font-bold text-gray-800 mb-1">{list.name}</h3>
-          {list.description && (
-            <p className="text-sm text-gray-600 mb-2">{list.description}</p>
-          )}
+      <div className="mb-3">
+        <div className="flex justify-between items-start gap-2 mb-2">
+          <div className="flex-1 min-w-0">
+            <h3 className={`text-base sm:text-lg font-bold mb-1 break-words ${
+              isShared ? 'text-gray-900' : 'text-gray-800'
+            }`}>{list.name}</h3>
+            {list.description && (
+              <p className="text-sm text-gray-700 mb-2 break-words">{list.description}</p>
+            )}
+          </div>
         </div>
         {!isShared && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {sharedCount > 0 && (
               <>
                 <button
                   onClick={() => navigate(`/lists/owner/${list.id}`)}
-                  className="text-indigo-600 hover:text-indigo-800 text-sm font-medium px-3 py-1 rounded hover:bg-indigo-50"
+                  className="text-indigo-600 hover:text-indigo-800 active:text-indigo-900 text-xs sm:text-sm font-medium px-2 sm:px-3 py-1.5 sm:py-1 rounded hover:bg-indigo-50 active:bg-indigo-100 whitespace-nowrap touch-manipulation"
                   title="View owner statistics"
                 >
-                  📊 Stats
+                  📊 <span className="hidden xs:inline">Stats</span>
                 </button>
                 <button
                   onClick={() => onManageAccess(list)}
-                  className="text-purple-600 hover:text-purple-800 text-sm font-medium px-3 py-1 rounded hover:bg-purple-50"
+                  className="text-purple-600 hover:text-purple-800 active:text-purple-900 text-xs sm:text-sm font-medium px-2 sm:px-3 py-1.5 sm:py-1 rounded hover:bg-purple-50 active:bg-purple-100 whitespace-nowrap touch-manipulation"
                   title="Manage who has access"
                 >
-                  👥 Manage
+                  👥 <span className="hidden xs:inline">Manage</span>
                 </button>
               </>
             )}
             <button
               onClick={() => onShare(list)}
-              className="text-green-600 hover:text-green-800 text-sm font-medium px-3 py-1 rounded hover:bg-green-50"
+              className="text-green-600 hover:text-green-800 active:text-green-900 text-xs sm:text-sm font-medium px-2 sm:px-3 py-1.5 sm:py-1 rounded hover:bg-green-50 active:bg-green-100 whitespace-nowrap touch-manipulation"
               title="Share this list"
             >
-              🔗 Share
+              🔗 <span className="hidden xs:inline">Share</span>
             </button>
             <button
               onClick={() => onEdit(list)}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium px-3 py-1 rounded hover:bg-blue-50"
+              className="text-blue-600 hover:text-blue-800 active:text-blue-900 text-xs sm:text-sm font-medium px-2 sm:px-3 py-1.5 sm:py-1 rounded hover:bg-blue-50 active:bg-blue-100 whitespace-nowrap touch-manipulation"
             >
-              Edit
+              ✏️ <span className="hidden xs:inline">Edit</span>
             </button>
             <button
               onClick={() => onDelete(list)}
-              className="text-red-600 hover:text-red-800 text-sm font-medium px-3 py-1 rounded hover:bg-red-50"
+              className="text-red-600 hover:text-red-800 active:text-red-900 text-xs sm:text-sm font-medium px-2 sm:px-3 py-1.5 sm:py-1 rounded hover:bg-red-50 active:bg-red-100 whitespace-nowrap touch-manipulation"
             >
-              Delete
+              🗑️ <span className="hidden xs:inline">Delete</span>
             </button>
           </div>
         )}
       </div>
 
-      <div className="flex flex-wrap gap-3 text-sm">
-        <div className="flex items-center gap-1 text-gray-700">
+      <div className="flex flex-wrap gap-2 sm:gap-3 text-sm">
+        <div className="flex items-center gap-1 text-gray-800">
           <span className="font-semibold">👥 {memberCount}</span>
-          <span>member{memberCount !== 1 ? 's' : ''}</span>
+          <span className="text-xs sm:text-sm">member{memberCount !== 1 ? 's' : ''}</span>
         </div>
 
         {!isShared && sharedCount > 0 && (
-          <div className="flex items-center gap-1 text-gray-700">
+          <div className="flex items-center gap-1 text-gray-800">
             <span className="font-semibold">🔗 {sharedCount}</span>
-            <span>share{sharedCount !== 1 ? 's' : ''}</span>
+            <span className="text-xs sm:text-sm">share{sharedCount !== 1 ? 's' : ''}</span>
           </div>
         )}
 
         {!isShared && (
           <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full">
-            <span className="text-xs">{shareTypeLabels[shareType]}</span>
+            <span className="text-xs font-medium text-gray-800 whitespace-nowrap">{shareTypeLabels[shareType]}</span>
           </div>
         )}
 
         {isShared && (
           <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-900 rounded-full">
-            <span className="text-xs font-medium">📧 Shared by @{list.ownerUsername}</span>
+            <span className="text-xs font-semibold whitespace-nowrap">📧 Shared by @{list.ownerUsername}</span>
           </div>
         )}
       </div>
