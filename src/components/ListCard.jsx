@@ -1,7 +1,8 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function ListCard({ list, onEdit, onDelete, onShare, onManageAccess, onClick, isShared = false }) {
+  const navigate = useNavigate();
   const memberCount = list.memberIds?.length || 0;
   const sharedCount = Array.isArray(list.sharedWith)
     ? list.sharedWith.length
@@ -35,13 +36,22 @@ export default function ListCard({ list, onEdit, onDelete, onShare, onManageAcce
         {!isShared && (
           <div className="flex gap-2">
             {sharedCount > 0 && (
-              <button
-                onClick={() => onManageAccess(list)}
-                className="text-purple-600 hover:text-purple-800 text-sm font-medium px-3 py-1 rounded hover:bg-purple-50"
-                title="Manage who has access"
-              >
-                👥 Manage
-              </button>
+              <>
+                <button
+                  onClick={() => navigate(`/lists/owner/${list.id}`)}
+                  className="text-indigo-600 hover:text-indigo-800 text-sm font-medium px-3 py-1 rounded hover:bg-indigo-50"
+                  title="View owner statistics"
+                >
+                  📊 Stats
+                </button>
+                <button
+                  onClick={() => onManageAccess(list)}
+                  className="text-purple-600 hover:text-purple-800 text-sm font-medium px-3 py-1 rounded hover:bg-purple-50"
+                  title="Manage who has access"
+                >
+                  👥 Manage
+                </button>
+              </>
             )}
             <button
               onClick={() => onShare(list)}
