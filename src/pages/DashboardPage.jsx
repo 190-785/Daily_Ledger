@@ -43,6 +43,13 @@ export default function DashboardPage({ userId }) {
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState([]);
   const [allTransactions, setAllTransactions] = useState([]);
+  const initialDailyStats = {
+    totalCollected: 0,
+    totalMembers: 0,
+    paidMembers: [],
+    pendingMembers: [],
+    recentTransactions: [],
+  };
 
   // Load members and transactions
   useEffect(() => {
@@ -67,9 +74,7 @@ export default function DashboardPage({ userId }) {
     };
   }, [userId]);
 
-  // In src/pages/DashboardPage.jsx, after your useState hooks:
-
-// This useEffect handles REACTIVE updates to the dashboard
+  // This useEffect handles REACTIVE updates to the dashboard
   // It listens for changes to the cached stats docs
   useEffect(() => {
     setLoading(true);
@@ -78,10 +83,18 @@ export default function DashboardPage({ userId }) {
 
       const unsubscribe = onSnapshot(dailyStatsRef, (docSnap) => {
         if (docSnap.exists()) {
-          setDailyStats(docSnap.data());
+          // --- THIS IS THE FIX ---
+          // Merge Firestore data with initial state to ensure all keys exist
+          setDailyStats(prevStats => ({
+            ...initialDailyStats, // Start with the default structure
+            ...docSnap.data(),     // Overwrite with Firestore data
+            recentTransactions: prevStats.recentTransactions || [], // Preserve recentTransactions
+          }));
+          // --- END FIX ---
         } else {
           // If no stats doc exists, trigger an update to create one
-          updateDailyStats(userId, selectedDate).catch(error => { // 'stats' variable removed
+          setDailyStats(initialDailyStats); // Reset to initial state first
+          updateDailyStats(userId, selectedDate).catch(error => {
             console.error("Error calculating daily stats:", error);
           });
         }
@@ -94,10 +107,15 @@ export default function DashboardPage({ userId }) {
 
       const unsubscribe = onSnapshot(monthlyStatsRef, (docSnap) => {
         if (docSnap.exists()) {
-          setMonthlyStats(docSnap.data());
+          // Also apply the merge logic here for safety
+          setMonthlyStats(prevStats => ({
+            ...(prevStats || {}), // Keep previous state if it exists
+            ...docSnap.data()     // Overwrite with new data
+          }));
         } else {
           // If no stats doc exists, trigger an update
-          updateMonthlyStats(userId, selectedMonth).catch(error => { // 'stats' variable removed
+          setMonthlyStats(null); // Set to null while it calculates
+          updateMonthlyStats(userId, selectedMonth).catch(error => {
             console.error("Error calculating monthly stats:", error);
             setMonthlyStats(null); // Set to null on error
           });
@@ -411,9 +429,7 @@ export default function DashboardPage({ userId }) {
                   <h3 className="text-lg font-bold text-emerald-300 mb-4 flex items-center">
                     <span className="bg-emerald-500/30 w-2 h-8 rounded-full mr-3"></span>
                     <span className="text-xl">✅</span>
-                    <span className="ml-2">
-                      Paid ({dailyStats.paidMembers.length})
-                    </span>
+                    <span className="ml-2">Paid ({(dailyStats.paidMembers || []).length})</span>
                   </h3>
                   <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
                     {dailyStats.paidMembers.length > 0 ? (
@@ -442,9 +458,7 @@ export default function DashboardPage({ userId }) {
                   <h3 className="text-lg font-bold text-amber-300 mb-4 flex items-center">
                     <span className="bg-amber-500/30 w-2 h-8 rounded-full mr-3"></span>
                     <span className="text-xl">⏳</span>
-                    <span className="ml-2">
-                      Didn't Pay ({dailyStats.pendingMembers.length})
-                    </span>
+                    <span className="ml-2">Didn't Pay ({(dailyStats.pendingMembers || []).length})</span>
                   </h3>
                   <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
                     {dailyStats.pendingMembers.length > 0 ? (
@@ -473,7 +487,7 @@ export default function DashboardPage({ userId }) {
                 </h3>
                 <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 border border-slate-700/50 p-5 rounded-xl shadow-lg">
                   <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
-                    {dailyStats.recentTransactions.length > 0 ? (
+                    {(dailyStats.recentTransactions || []).length > 0 ? (
                       dailyStats.recentTransactions.map((trans, idx) => (
                         <div
                           key={idx}
@@ -574,7 +588,7 @@ export default function DashboardPage({ userId }) {
                 </h3>
                 <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 border border-rose-700/30 p-5 rounded-xl shadow-lg">
                   <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
-                    {monthlyStats.membersWithDues.length > 0 ? (
+                    {(monthlyStats.membersWithDues || []).length > 0 ? (
                       monthlyStats.membersWithDues.map((member, index) => (
                         <div
                           key={index}
