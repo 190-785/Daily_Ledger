@@ -10,30 +10,6 @@ import {
 import { db } from "../firebase";
 
 /**
- * Calculates the total expected amount from a member up to a given month.
- * This is the new centralized function for this logic.
- * @param {Object} member - The member object (must have 'createdOn' and 'monthlyTarget')
- * @param {Date} asOfDate - The date to calculate up to (inclusive of this month).
- */
-function calculateTotalExpected(member, asOfDate) {
-  const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
-  let totalExpected = 0;
-  
-  // Start checking from the first day of the member's creation month
-  let checkDate = new Date(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1);
-  
-  // End checking at the first day of the 'asOfDate's month
-  const endDate = new Date(asOfDate.getFullYear(), asOfDate.getMonth(), 1);
-  
-  while (checkDate <= endDate) {
-    totalExpected += member.monthlyTarget || 0;
-    checkDate.setMonth(checkDate.getMonth() + 1);
-  }
-  
-  return totalExpected;
-}
-
-/**
  * Calculate and save daily stats to Firebase
  */
 export async function updateDailyStats(userId, date) {
@@ -86,11 +62,20 @@ export async function updateDailyStats(userId, date) {
         .filter((t) => t.memberId === member.id)
         .reduce((sum, t) => sum + t.amount, 0);
 
-      // --- REFACTORED LOGIC ---
-      // Use the centralized function to get total expected
+      // Get member creation date
+      const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
       const currentDate = new Date(date);
-      const totalExpected = calculateTotalExpected(member, currentDate);
-      // --- END REFACTOR ---
+      
+      // Calculate expected amount (monthlyTarget * number of months since creation)
+      let totalExpected = 0;
+      let checkDate = new Date(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1);
+      const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      
+      // Count each month from member creation to current month (inclusive)
+      while (checkDate <= endDate) {
+        totalExpected += member.monthlyTarget || 0;
+        checkDate.setMonth(checkDate.getMonth() + 1);
+      }
 
       const outstandingBalance = totalExpected - totalPaidAllTime;
       
@@ -203,21 +188,35 @@ export async function updateMonthlyStats(userId, monthYear) {
         (t) => t.memberId === member.id && t.date < `${monthYear}-01`
       );
 
-      // --- REFACTORED LOGIC ---
+      // Group by month
+      const months = {};
+      previousTransactions.forEach((t) => {
+        const month = t.date.slice(0, 7);
+        if (!months[month]) months[month] = { paid: 0 };
+        months[month].paid += t.amount;
+      });
+
       // Calculate cumulative balance from ALL previous months
-      const previousMonth = new Date(startDate);
-      previousMonth.setDate(0); // This sets it to the last day of the previous month
-      
-      const totalExpected_previous = calculateTotalExpected(member, previousMonth);
-      const totalPaid_previous = previousTransactions.reduce((sum, t) => sum + t.amount, 0);
-      const previousBalanceDue = totalExpected_previous - totalPaid_previous;
-      // --- END REFACTOR ---
+      let previousBalanceDue = 0;
+      Object.keys(months).forEach((month) => {
+        previousBalanceDue += member.monthlyTarget - months[month].paid;
+      });
+
+      // Add balance for months with no transactions
+      const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
+      let currentCheckDate = new Date(memberCreatedDate);
+      while (currentCheckDate < startDate) {
+        const monthKey = currentCheckDate.toISOString().slice(0, 7);
+        if (!months[monthKey] && currentCheckDate >= memberCreatedDate) {
+          previousBalanceDue += member.monthlyTarget;
+        }
+        currentCheckDate.setMonth(currentCheckDate.getMonth() + 1);
+      }
 
       const paidThisMonth = transactionsThisMonth
         .filter((t) => t.memberId === member.id)
         .reduce((sum, t) => sum + t.amount, 0);
 
-      // The final balance IS the outstanding balance
       const finalBalance =
         member.monthlyTarget + previousBalanceDue - paidThisMonth;
 

@@ -1,32 +1,6 @@
 import * as XLSX from 'xlsx';
 
 /**
- * Calculates the total expected amount from a member up to a given month.
- * This is a local copy of the logic from statsCalculator.js to ensure
- * exports are 100% consistent with the UI.
- * @param {Object} member - The member object (must have 'createdOn' and 'monthlyTarget')
- * @param {Date} asOfDate - The date to calculate up to (inclusive of this month).
- */
-function calculateTotalExpected(member, asOfDate) {
-  const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
-  let totalExpected = 0;
-  
-  // Start checking from the first day of the member's creation month
-  let checkDate = new Date(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1);
-  
-  // End checking at the first day of the 'asOfDate's month
-  const endDate = new Date(asOfDate.getFullYear(), asOfDate.getMonth(), 1);
-  
-  while (checkDate <= endDate) {
-    totalExpected += member.monthlyTarget || 0;
-    checkDate.setMonth(checkDate.getMonth() + 1);
-  }
-  
-  return totalExpected;
-}
-
-
-/**
  * Exports monthly ledger data to an Excel file
  * @param {Object} params - Export parameters
  * @param {Array} params.members - Array of member objects
@@ -280,16 +254,19 @@ export const exportMemberMonthlyToExcel = ({ member, transactions, allTransactio
   const monthlyBalance = monthlyTotal - (member.monthlyTarget || 0);
   data.push(['Monthly Balance', monthlyBalance]);
   
-  // --- REFACTORED LOGIC ---
   // Calculate cumulative balance
   const totalPaidAllTime = allTransactions.reduce((sum, t) => sum + t.amount, 0);
   
   // Calculate total expected from member creation to end of selected month
+  const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
   const endOfSelectedMonth = new Date(parseInt(year), parseInt(month), 0);
   
-  // Use the centralized function
-  const totalExpected = calculateTotalExpected(member, endOfSelectedMonth);
-  // --- END REFACTOR ---
+  let totalExpected = 0;
+  let checkDate = new Date(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1);
+  while (checkDate <= endOfSelectedMonth) {
+    totalExpected += member.monthlyTarget || 0;
+    checkDate.setMonth(checkDate.getMonth() + 1);
+  }
   
   const cumulativeBalance = totalPaidAllTime - totalExpected;
   data.push(['Cumulative Balance (All Time)', cumulativeBalance]);
