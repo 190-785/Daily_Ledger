@@ -18,17 +18,20 @@
 - **Monthly Targets**: Set and monitor monthly collection goals
 - **Real-time Updates**: Instant synchronization across all devices
 
-### 📊 **Analytics Dashboard**
-- **Daily Summary**: View today's collections at a glance
-- **Monthly Overview**: Track progress toward monthly targets
-- **Payment Status**: See who paid today and who has outstanding balances
-- **Historical Data**: Access past transactions and trends
-
-### 🔗 **List Sharing**
+### � **List Sharing & Owner Statistics**
 - **Share Lists**: Collaborate with other users by sharing collection lists
 - **Username Search**: Find users by their unique username
 - **Access Control**: Manage who can view your shared lists
+- **Owner Statistics**: View comprehensive payment statistics (total collected, who paid/didn't pay) - **visible only to list owners**
 - **Real-time Sync**: Shared lists update instantly for all users
+
+### 📊 **Advanced Analytics**
+- **Daily Summary**: View today's collections at a glance
+- **Monthly Overview**: Track progress toward monthly targets
+- **Payment Status**: See who paid today and who has outstanding balances
+- **Outstanding Management**: Clear outstanding balances for specific months
+- **Historical Data**: Access past transactions and trends
+- **Excel Export**: Download monthly reports and individual member statements
 
 ### 👤 **User Profiles**
 - **Unique Usernames**: Claim your unique @username
@@ -246,28 +249,70 @@ Daily_Ledger/
 ## 🔒 Security
 
 ### Firestore Security Rules
-All data access is protected by comprehensive Firestore Security Rules:
+All data access is protected by comprehensive Firestore Security Rules that have been thoroughly tested and fixed for production use:
 
-- ✅ **Authentication Required**: Most operations require user authentication
-- ✅ **Owner-Only Access**: Users can only access their own data
-- ✅ **Input Validation**: String lengths, formats, and types are validated
-- ✅ **Timestamp Validation**: Prevents backdating and future-dating
-- ✅ **Rate Limiting**: Max amounts (1M per transaction) and list sizes (1000 members)
-- ✅ **Immutable Data**: Usernames cannot be changed after creation
-- ✅ **Sharing Controls**: List sharing requires explicit permission
+#### ✅ **Key Security Features:**
+- **Authentication Required**: Most operations require user authentication
+- **Owner-Only Access**: Users can only access their own data
+- **Input Validation**: String lengths, formats, and types are validated
+- **Timestamp Validation**: Prevents backdating and future-dating using server timestamps
+- **Rate Limiting**: Max amounts (1M per transaction) and list sizes (1000 members)
+- **Immutable Data**: Usernames cannot be changed after creation
+- **Sharing Controls**: List sharing requires explicit permission and uses map-based structure
+
+#### ✅ **Recent Security Fixes:**
+- **Map-based Sharing**: Changed from array `[]` to object `{}` structure for efficient user lookup
+- **Server Timestamps**: All timestamps use `serverTimestamp()` instead of client-side `new Date()`
+- **Permission Errors**: Fixed "Missing or insufficient permissions" errors during list sharing
+- **Input Validation**: Comprehensive validation for usernames, emails, dates, and amounts
+
+#### ✅ **Security Rules Structure:**
+```javascript
+// Username availability check (public)
+match /usernames/{username} {
+  allow read: if true;
+}
+
+// Lists with sharing support
+match /lists/{listId} {
+  allow read: if isOwner(userId) || 
+              (isSignedIn() && request.auth.uid in resource.data.sharedWith.keys());
+  allow write: if isOwner(userId) && validListData();
+}
+
+// Transactions with validation
+match /lists/{listId}/transactions/{transactionId} {
+  allow read, write: if canAccessList(listId) && validTransactionData();
+}
+```
 
 ### Best Practices
 - 🔐 Firebase API keys are **public by design** (safe in client-side code)
 - 🔐 All sensitive operations validated on Firebase servers
 - 🔐 Security rules cannot be bypassed by modified client code
 - 🔐 User data isolated by Firebase Auth UID
+- 🔐 Server-side timestamp validation prevents manipulation
+- 🔐 Map-based sharing structure enables efficient permission checks
 
 ---
 
 ## 🚢 Deployment
 
+### Architecture Overview
+Your app follows a **JAMstack** architecture:
+- **Vercel** = Static hosting (HTML, CSS, JS files)
+- **Firebase** = Backend services (Auth + Database)
+- **Security Rules** = Enforced on Firebase servers (not in browser)
+
+```
+Browser → Vercel (Static Host) → Firebase SDK → Firebase Servers (Security Rules)
+```
+
+**Key Security Point**: Security rules protect data on Firebase servers, not in the browser. Users cannot bypass them!
+
 ### Deploy to Vercel (Recommended)
 
+#### Option A: Vercel Dashboard (Easiest)
 1. **Push to GitHub**
    ```bash
    git add .
@@ -285,14 +330,45 @@ All data access is protected by comprehensive Firestore Security Rules:
      - Output Directory: `dist`
    - Click **"Deploy"**
 
-3. **Update Firebase Settings**
-   - Add Vercel domain to Firebase authorized domains
-   - Firebase Console → Authentication → Settings → Authorized domains
+#### Option B: Vercel CLI
+```bash
+# Install CLI (if not already installed)
+npm i -g vercel
 
-4. **Deploy Firestore Rules**
-   - Copy content from `firestore.rules`
-   - Paste into Firebase Console → Firestore → Rules
-   - Click **"Publish"**
+# Deploy
+vercel --prod
+```
+
+### Deploy Firestore Security Rules
+
+#### Step 1: Choose Rules File
+- **Recommended**: Use `firestore.rules` (production-ready with enhanced validation)
+- **Alternative**: `firestore.production.rules` (even more restrictive validation)
+
+#### Step 2: Deploy via Firebase Console
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select your project (`daily-collection-ledger`)
+3. Navigate: **Firestore Database** → **Rules** tab
+4. Copy entire content from `firestore.rules`
+5. Paste into Firebase Console editor
+6. Click **"Publish"**
+7. Wait 60 seconds for rules to propagate
+
+### Configure Firebase for Production
+
+#### Add Vercel Domain to Authorized Domains
+1. Get your Vercel URL (e.g., `daily-ledger.vercel.app`)
+2. Firebase Console → **Authentication** → **Settings**
+3. Scroll to **"Authorized domains"**
+4. Click **"Add domain"**
+5. Enter your Vercel domain
+6. Click **"Add"**
+
+### Test Production Deployment
+- Visit your Vercel URL
+- Test signup, login, and all features
+- Check browser console (F12) for errors
+- Verify list sharing and dashboard work
 
 ### Deploy to Other Platforms
 
@@ -301,48 +377,42 @@ The app works on any static hosting platform:
 - **GitHub Pages**: Use `gh-pages` npm package
 - **Firebase Hosting**: `firebase init hosting` + `firebase deploy`
 
-See [PRODUCTION_DEPLOY_GUIDE.md](PRODUCTION_DEPLOY_GUIDE.md) for detailed instructions.
+### Production vs Development Differences
+
+#### Development (`npm run dev`):
+- Hot reload enabled
+- Source maps available
+- Console logging active
+- Runs on `http://localhost:5173`
+
+#### Production (Vercel):
+- Code minified and optimized
+- Source maps removed
+- Custom HTTPS domain
+- CDN distribution worldwide
+- Automatic SSL certificates
+
+#### Firebase Rules (Same Everywhere):
+- ✅ Work identically in dev and production
+- ✅ Protect data regardless of client location
+- ✅ Cannot be bypassed by modified client code
+
+### Continuous Deployment
+Connect your GitHub repo to Vercel for automatic deployments:
+- Every push to `main` = automatic production deploy
+- Pull requests get preview deployments
+- Rollbacks available in Vercel dashboard
 
 ---
 
 ## 📖 Documentation
 
 ### Essential Docs
-- **[CODE_AUDIT_REPORT.md](CODE_AUDIT_REPORT.md)** - Code quality analysis (9/10 score)
-- **[PRODUCTION_DEPLOY_GUIDE.md](PRODUCTION_DEPLOY_GUIDE.md)** - Step-by-step deployment
-- **[VERCEL_FIREBASE_GUIDE.md](VERCEL_FIREBASE_GUIDE.md)** - Architecture explanation
-- **[FIREBASE_RULES_FINAL.md](FIREBASE_RULES_FINAL.md)** - Security rules guide
-- **[LICENSE](LICENSE)** - MIT License
+- **[CODE_AUDIT_REPORT.md](CODE_AUDIT_REPORT.md)** - Code quality analysis (9/10 score) with improvement recommendations
+- **[LICENSE](LICENSE)** - GNU General Public License v3.0
 
-### Key Features Explained
-
-#### 1. Daily Ledger System
-Track daily collections for each member with:
-- Custom amounts per member
-- Date-based organization
-- Real-time updates across devices
-- Historical transaction records
-
-#### 2. Dashboard Analytics
-View comprehensive statistics:
-- **Daily Tab**: Today's collections and payment status
-- **Monthly Tab**: Progress toward monthly targets
-- **Paid/Didn't Pay**: Filter by payment status
-- **Outstanding Balances**: See who owes money
-
-#### 3. List Sharing
-Collaborate with others:
-- Share lists by username search
-- Real-time synchronization
-- Access control per list
-- View shared lists from others
-
-#### 4. Username System
-Unique identifier for each user:
-- 3-20 characters, lowercase alphanumeric + underscore
-- Checked for availability during signup
-- Immutable after creation
-- Used for list sharing
+### Consolidated Information
+All deployment guides, security rules documentation, and feature explanations have been consolidated into this README for easier reference.
 
 ---
 

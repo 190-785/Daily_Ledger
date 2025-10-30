@@ -74,32 +74,34 @@ export default function OwnerSharedListViewPage({ userId }) {
       try {
         const dailyTransactions = [];
 
-        for (const member of members) {
-          const transactionsRef = collection(db, 'users', userId, 'transactions');
-          const transactionsQuery = query(
-            transactionsRef,
-            where('memberId', '==', member.id),
-            where('date', '==', selectedDate),
-            firestoreOrderBy('timestamp', 'desc')
-          );
-          
-          const transactionsSnap = await getDocs(transactionsQuery);
-          let memberTotal = 0;
-          const memberTransactions = [];
-          
-          transactionsSnap.forEach((doc) => {
-            const transData = { id: doc.id, ...doc.data() };
-            memberTransactions.push(transData);
-            memberTotal += transData.amount || 0;
-          });
+        // NEW, EFFICIENT QUERY
+const memberIds = members.map(m => m.id);
+const transactionsRef = collection(db, 'users', ownerId, 'transactions');
+const transactionsQuery = query(
+  transactionsRef,
+  where('memberId', 'in', memberIds), // Query for ALL members at once
+  where('date', '==', selectedDate)
+);
+const transactionsSnap = await getDocs(transactionsQuery);
 
-          dailyTransactions.push({
-            member,
-            transactions: memberTransactions,
-            total: memberTotal,
-            hasPaid: memberTotal > 0
-          });
-        }
+// Now, process the results in JavaScript
+const transactionsByMember = {};
+transactionsSnap.docs.forEach(doc => {
+  const t = doc.data();
+  if (!transactionsByMember[t.memberId]) {
+    transactionsByMember[t.memberId] = [];
+  }
+  transactionsByMember[t.memberId].push(t);
+});
+
+// Then build your 'dailyData' map
+const dailyDataMap = members.map(member => ({
+  member,
+  transactions: transactionsByMember[member.id] || [],
+  total: (transactionsByMember[member.id] || []).reduce((sum, t) => sum + t.amount, 0),
+  hasPaid: (transactionsByMember[member.id] || []).length > 0
+}));
+setDailyData(dailyDataMap);
 
         setDailyData(dailyTransactions);
       } catch (err) {
