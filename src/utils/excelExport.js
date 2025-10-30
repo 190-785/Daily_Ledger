@@ -24,9 +24,14 @@ export const exportMonthlyToExcel = ({ members, transactions, monthYear, listNam
     dates.push(date);
   }
   
-  // Build transaction map: memberId -> date -> amount
+// Build transaction map: memberId -> date -> amount
   const transactionMap = {};
   transactions.forEach(t => {
+    // FIX: Ignore transactions that are only for clearing outstanding balances
+    if (t.type === 'outstanding_cleared') {
+      return;
+    }
+
     if (!transactionMap[t.memberId]) {
       transactionMap[t.memberId] = {};
     }
@@ -217,11 +222,16 @@ export const exportMemberMonthlyToExcel = ({ member, transactions, allTransactio
   // Header
   data.push(['Date', 'Day', 'Amount', 'Status']);
   
-  // Build transaction map by date
+// Build transaction map by date
   const transactionMap = {};
   let monthlyTotal = 0;
   
   transactions.forEach(t => {
+    // FIX: Ignore transactions that are only for clearing outstanding balances
+    if (t.type === 'outstanding_cleared') {
+      return;
+    }
+
     if (!transactionMap[t.date]) {
       transactionMap[t.date] = 0;
     }
