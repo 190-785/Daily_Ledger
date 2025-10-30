@@ -14,6 +14,8 @@ export default function SharedListViewPage({ userId }) {
   const [activeTab, setActiveTab] = useState('daily');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showPaidList, setShowPaidList] = useState(false);
+  const [showUnpaidList, setShowUnpaidList] = useState(false);
 
   // Fetch shared list data
   useEffect(() => {
@@ -128,7 +130,7 @@ export default function SharedListViewPage({ userId }) {
     const fetchDailyData = async () => {
       try {
         const ownerId = sharedList.ownerUserId || sharedList.ownerId;
-        const dailyTransactions = [];
+        const memberDataMap = [];
 
         for (const member of members) {
           const transactionsRef = collection(db, 'users', ownerId, 'transactions');
@@ -140,17 +142,25 @@ export default function SharedListViewPage({ userId }) {
           );
           
           const transactionsSnap = await getDocs(transactionsQuery);
+          let memberTotal = 0;
+          const memberTransactions = [];
+          
           transactionsSnap.forEach((doc) => {
-            dailyTransactions.push({
-              id: doc.id,
-              ...doc.data(),
-              memberName: member.name
-            });
+            const transData = { id: doc.id, ...doc.data() };
+            memberTransactions.push(transData);
+            memberTotal += transData.amount || 0;
+          });
+
+          memberDataMap.push({
+            member,
+            transactions: memberTransactions,
+            total: memberTotal,
+            hasPaid: memberTotal > 0
           });
         }
 
-        console.log('Daily transactions fetched:', dailyTransactions.length);
-        setDailyData(dailyTransactions);
+        console.log('Daily transactions fetched:', memberDataMap);
+        setDailyData(memberDataMap);
       } catch (err) {
         console.error('Error fetching daily data:', err);
         console.error('Error code:', err.code);
@@ -383,58 +393,183 @@ export default function SharedListViewPage({ userId }) {
         <>
           {/* Daily View */}
           {activeTab === 'daily' && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">
-                Daily Transactions - {new Date(getAllowedDate()).toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </h2>
+            <>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">
+                  Daily Transactions - {new Date(getAllowedDate()).toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </h2>
 
-              {dailyData.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <div className="text-4xl mb-3">📭</div>
-                  <p>No transactions found for this date</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {dailyData.map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      className={`p-4 rounded-lg border ${
-                        transaction.type === 'debit'
-                          ? 'bg-red-50 border-red-200'
-                          : 'bg-green-50 border-green-200'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {transaction.memberName}
-                          </div>
-                          {transaction.description && (
-                            <div className="text-sm text-gray-600 mt-1">
-                              {transaction.description}
+                {dailyData.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="text-4xl mb-3">📭</div>
+                    <p>No members found in this list</p>
+                  </div>
+                ) : dailyData.every(item => !item.hasPaid) ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="text-4xl mb-3">💤</div>
+                    <p>No transactions found for this date</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {dailyData.filter(item => item.hasPaid).map((item) => (
+                      <div
+                        key={item.member.id}
+                        className="p-4 rounded-lg border bg-green-50 border-green-200"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <div className="font-medium text-gray-900 text-lg">
+                              {item.member.name}
                             </div>
-                          )}
-                          <div className="text-xs text-gray-500 mt-1">
-                            {new Date(transaction.timestamp?.toDate()).toLocaleTimeString()}
+                            <div className="text-sm text-gray-600 mt-1">
+                              {item.transactions.length} transaction{item.transactions.length !== 1 ? 's' : ''}
+                            </div>
+                          </div>
+                          <div className="text-lg font-bold text-green-700">
+                            {formatCurrency(item.total)}
                           </div>
                         </div>
-                        <div className={`text-lg font-bold ${
-                          transaction.type === 'debit' ? 'text-red-700' : 'text-green-700'
-                        }`}>
-                          {transaction.type === 'debit' ? '-' : '+'}
-                          {formatCurrency(transaction.amount)}
+                        
+                        {/* Transaction details */}
+                        <div className="mt-3 space-y-2 pl-4 border-l-2 border-green-300">
+                          {item.transactions.map((trans) => (
+                            <div key={trans.id} className="text-sm text-gray-700 flex justify-between items-center">
+                              <div>
+                                <span className="font-medium">{formatCurrency(trans.amount)}</span>
+                                {trans.description && (
+                                  <span className="text-gray-500 ml-2">- {trans.description}</span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {new Date(trans.timestamp?.toDate()).toLocaleTimeString()}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Statistics Section */}
+              <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg shadow-sm border-2 border-blue-200 p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-2xl">📊</span>
+                  <h3 className="text-xl font-bold text-gray-800">Statistics</h3>
                 </div>
-              )}
-            </div>
+
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                    <div className="text-sm text-gray-600 mb-1">Total Collected</div>
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatCurrency(dailyData.reduce((sum, item) => sum + item.total, 0))}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                    <div className="text-sm text-gray-600 mb-1">Members Paid</div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {dailyData.filter(item => item.hasPaid).length} / {members.length}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                    <div className="text-sm text-gray-600 mb-1">Members Unpaid</div>
+                    <div className="text-2xl font-bold text-orange-600">
+                      {dailyData.filter(item => !item.hasPaid).length} / {members.length}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Collapsible Paid Members List */}
+                {dailyData.filter(item => item.hasPaid).length > 0 && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => setShowPaidList(!showPaidList)}
+                      className="w-full flex items-center justify-between bg-white rounded-lg p-4 shadow-sm border border-green-200 hover:bg-green-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">✅</span>
+                        <span className="font-semibold text-gray-800">
+                          Members Who Paid ({dailyData.filter(item => item.hasPaid).length})
+                        </span>
+                      </div>
+                      <svg
+                        className={`w-5 h-5 text-gray-600 transition-transform ${
+                          showPaidList ? 'transform rotate-180' : ''
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {showPaidList && (
+                      <div className="mt-2 bg-white rounded-lg border border-green-200 divide-y divide-gray-100">
+                        {dailyData.filter(item => item.hasPaid).map((item) => (
+                          <div key={item.member.id} className="p-3 flex justify-between items-center hover:bg-green-50">
+                            <div className="flex items-center gap-2">
+                              <span className="text-green-500">●</span>
+                              <span className="font-medium text-gray-700">{item.member.name}</span>
+                            </div>
+                            <span className="font-semibold text-green-700">
+                              {formatCurrency(item.total)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Collapsible Unpaid Members List */}
+                {dailyData.filter(item => !item.hasPaid).length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setShowUnpaidList(!showUnpaidList)}
+                      className="w-full flex items-center justify-between bg-white rounded-lg p-4 shadow-sm border border-orange-200 hover:bg-orange-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">⏳</span>
+                        <span className="font-semibold text-gray-800">
+                          Members Who Didn't Pay ({dailyData.filter(item => !item.hasPaid).length})
+                        </span>
+                      </div>
+                      <svg
+                        className={`w-5 h-5 text-gray-600 transition-transform ${
+                          showUnpaidList ? 'transform rotate-180' : ''
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {showUnpaidList && (
+                      <div className="mt-2 bg-white rounded-lg border border-orange-200 divide-y divide-gray-100">
+                        {dailyData.filter(item => !item.hasPaid).map((item) => (
+                          <div key={item.member.id} className="p-3 flex items-center gap-2 hover:bg-orange-50">
+                            <span className="text-orange-500">●</span>
+                            <span className="font-medium text-gray-700">{item.member.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
           {/* Monthly View */}
