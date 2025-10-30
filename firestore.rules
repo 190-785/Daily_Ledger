@@ -181,7 +181,7 @@ service cloud.firestore {
                         request.resource.data.date is string &&
                         request.resource.data.date.size() == 10 && // YYYY-MM-DD format
                         request.resource.data.timestamp is timestamp &&
-                        isRecentTimestamp(request.resource.data.timestamp);
+                        (request.resource.data.type == 'balance_clearance' || request.resource.data.type == 'outstanding_cleared' || isRecentTimestamp(request.resource.data.timestamp));
         
         // Update and delete transactions
         allow update: if isOwner(userId) &&

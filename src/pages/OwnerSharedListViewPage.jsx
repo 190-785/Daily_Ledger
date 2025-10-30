@@ -66,49 +66,65 @@ export default function OwnerSharedListViewPage({ userId }) {
     fetchList();
   }, [userId, listId]);
 
-  // Fetch daily data when date changes
-  useEffect(() => {
-    if (!list || members.length === 0) return;
-    
-    const fetchDailyData = async () => {
-      try {
-        const dailyTransactions = [];
+// Fetch daily data when date changes
+useEffect(() => {
+  if (!list || members.length === 0) {
+    setDailyData([]); // Clear data if no members
+    return;
+  }
+  
+  const fetchDailyData = async () => {
+    try {
+      // 1. Get all member IDs for the 'in' query
+      const memberIds = members.map(m => m.id);
 
-        for (const member of members) {
-          const transactionsRef = collection(db, 'users', userId, 'transactions');
-          const transactionsQuery = query(
-            transactionsRef,
-            where('memberId', '==', member.id),
-            where('date', '==', selectedDate),
-            firestoreOrderBy('timestamp', 'desc')
-          );
-          
-          const transactionsSnap = await getDocs(transactionsQuery);
-          let memberTotal = 0;
-          const memberTransactions = [];
-          
-          transactionsSnap.forEach((doc) => {
-            const transData = { id: doc.id, ...doc.data() };
-            memberTransactions.push(transData);
-            memberTotal += transData.amount || 0;
-          });
+      // 2. Create a single query to get all transactions for ALL members
+      const transactionsRef = collection(db, 'users', userId, 'transactions');
+      const transactionsQuery = query(
+        transactionsRef,
+        where('memberId', 'in', memberIds), // <-- The efficient 'in' query
+        where('date', '==', selectedDate)
+      );
 
-          dailyTransactions.push({
-            member,
-            transactions: memberTransactions,
-            total: memberTotal,
-            hasPaid: memberTotal > 0
-          });
+      // 3. Fetch all transactions in one go
+      const transactionsSnap = await getDocs(transactionsQuery);
+
+      // 4. Group transactions by memberId for easy lookup
+      const transactionsByMember = {};
+      transactionsSnap.forEach((doc) => {
+        const transData = { id: doc.id, ...doc.data() };
+        if (!transactionsByMember[transData.memberId]) {
+          transactionsByMember[transData.memberId] = [];
         }
+        transactionsByMember[transData.memberId].push(transData);
+      });
 
-        setDailyData(dailyTransactions);
-      } catch (err) {
-        console.error('Error fetching daily data:', err);
-      }
-    };
+      // 5. Build the final dailyData array, matching transactions to members
+      const dailyTransactions = members.map(member => {
+        const memberTransactions = transactionsByMember[member.id] || [];
+        
+        // Sort this member's transactions
+        memberTransactions.sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0));
+        
+        const memberTotal = memberTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    fetchDailyData();
-  }, [list, members, selectedDate, userId]);
+        return {
+          member,
+          transactions: memberTransactions,
+          total: memberTotal,
+          hasPaid: memberTotal > 0
+        };
+      });
+
+      setDailyData(dailyTransactions);
+    } catch (err) {
+      console.error('Error fetching daily data:', err);
+      setError('Failed to fetch transaction data.');
+    }
+  };
+
+  fetchDailyData();
+}, [list, members, selectedDate, userId]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {

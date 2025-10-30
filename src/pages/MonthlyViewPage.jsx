@@ -3,6 +3,35 @@ import { db } from "../firebase";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { exportMonthlyToExcel } from "../utils/excelExport";
 
+// Helper function to calculate monthly target from transaction patterns
+function calculateMonthlyTargetFromTransactions(memberTransactions) {
+  if (memberTransactions.length === 0) return 0;
+
+  // Sort transactions by date
+  const sortedTransactions = memberTransactions.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Group transactions by month
+  const monthlyTotals = {};
+  sortedTransactions.forEach(transaction => {
+    const month = transaction.date.slice(0, 7); // YYYY-MM format
+    if (!monthlyTotals[month]) {
+      monthlyTotals[month] = 0;
+    }
+    monthlyTotals[month] += transaction.amount;
+  });
+
+  // Find the most common monthly payment amount
+  const amounts = Object.values(monthlyTotals);
+  if (amounts.length === 0) return 0;
+
+  // For virtual members, assume the monthly target is the most common payment amount
+  const mostCommonAmount = amounts.sort((a,b) =>
+    amounts.filter(v => v===a).length - amounts.filter(v => v===b).length
+  ).pop();
+
+  return mostCommonAmount || 0;
+}
+
 const getMonthYear = (date = new Date()) => date.toISOString().slice(0, 7);
 
 export default function MonthlyViewPage({ userId }) {
@@ -12,6 +41,7 @@ export default function MonthlyViewPage({ userId }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthYear());
   const [monthlyData, setMonthlyData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [availableMembers, setAvailableMembers] = useState([]); // Includes virtual members
 
   useEffect(() => {
     const membersQuery = query(collection(db, "users", userId, "members"));
@@ -24,16 +54,34 @@ export default function MonthlyViewPage({ userId }) {
 
     const transQuery = query(collection(db, "users", userId, "transactions"));
     const unsubscribeTrans = onSnapshot(transQuery, (snapshot) => {
-      setAllTransactions(
-        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
+      const transactions = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setAllTransactions(transactions);
+      
+      // Calculate available members (current + virtual members from transactions)
+      const currentMemberIds = new Set(members.map(m => m.id));
+      const virtualMembers = new Map();
+      
+      transactions.forEach(transaction => {
+        if (!currentMemberIds.has(transaction.memberId) && !virtualMembers.has(transaction.memberId)) {
+          virtualMembers.set(transaction.memberId, {
+            id: transaction.memberId,
+            name: transaction.memberName,
+            isVirtual: true
+          });
+        }
+      });
+      
+      const allAvailableMembers = [...members, ...Array.from(virtualMembers.values())]
+        .sort((a, b) => (a.rank || 0) - (b.rank || 0));
+      
+      setAvailableMembers(allAvailableMembers);
     });
 
     return () => {
       unsubscribeMembers();
       unsubscribeTrans();
     };
-  }, [userId]);
+  }, [userId, members]);
 
   const calculateMonthlyData = useCallback(() => {
     if (!selectedMemberId || !selectedMonth) {
@@ -42,7 +90,7 @@ export default function MonthlyViewPage({ userId }) {
     }
 
     setLoading(true);
-    const member = members.find((m) => m.id === selectedMemberId);
+    const member = availableMembers.find((m) => m.id === selectedMemberId);
     if (!member) {
       setLoading(false);
       return;
@@ -77,23 +125,32 @@ export default function MonthlyViewPage({ userId }) {
       months[month].paid += t.amount;
     });
 
+    // Determine monthly target for this member
+    let monthlyTarget = member.monthlyTarget || 0;
+    
+    // For virtual members, calculate target from transaction patterns
+    if (member.isVirtual) {
+      const memberTransactions = allTransactions.filter(t => t.memberId === selectedMemberId);
+      monthlyTarget = calculateMonthlyTargetFromTransactions(memberTransactions);
+    }
+
     let balanceBroughtForward = 0; // Negative means due, positive means credit
     Object.keys(months).forEach((month) => {
-      balanceBroughtForward += months[month].paid - member.monthlyTarget;
+      balanceBroughtForward += months[month].paid - monthlyTarget;
     });
 
     const finalBalanceDue =
-      member.monthlyTarget - balanceBroughtForward - totalPaidThisMonth;
+      monthlyTarget - balanceBroughtForward - totalPaidThisMonth;
 
     setMonthlyData({
       transactions: currentTransactions,
       balanceBroughtForward,
       totalPaid: totalPaidThisMonth,
-      totalDue: member.monthlyTarget,
+      totalDue: monthlyTarget,
       finalBalanceDue,
     });
     setLoading(false);
-  }, [selectedMemberId, selectedMonth, members, allTransactions]);
+  }, [selectedMemberId, selectedMonth, availableMembers, allTransactions]);
 
   useEffect(() => {
     calculateMonthlyData();
@@ -146,9 +203,9 @@ export default function MonthlyViewPage({ userId }) {
           className="flex-1 min-w-[200px] p-2 border rounded-md"
         >
           <option value="">-- Choose member --</option>
-          {members.map((m) => (
+          {availableMembers.map((m) => (
             <option key={m.id} value={m.id}>
-              {m.name}
+              {m.name}{m.isVirtual ? ' (Historical)' : ''}
             </option>
           ))}
         </select>
