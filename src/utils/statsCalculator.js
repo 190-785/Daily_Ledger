@@ -228,12 +228,6 @@ export async function updateMonthlyStats(userId, monthYear) {
 
       // For historical members (created after the month we're viewing), calculate target from transactions
       let effectiveMonthlyTarget = member.monthlyTarget;
-      if (isHistoricalMember && !member.isVirtual) {
-        console.log(`Member ${member.name} was created after ${monthYear}, calculating target from transactions`);
-        const memberTransactions = allTransactions.filter(t => t.memberId === member.id);
-        effectiveMonthlyTarget = calculateMonthlyTargetFromTransactions(memberTransactions);
-        console.log(`Effective monthly target for ${member.name}: ${effectiveMonthlyTarget}`);
-      }
 
       // Get all transactions before this month
       const previousTransactions = allTransactions.filter(
