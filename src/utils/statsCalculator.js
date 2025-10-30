@@ -199,16 +199,6 @@ export async function updateMonthlyStats(userId, monthYear) {
 
     console.log(`Processing ${currentMembers.length} current members and ${virtualMembers.size} virtual members for ${monthYear}`);
 
-    // For virtual members, try to determine monthly target from historical patterns
-    virtualMembers.forEach((virtualMember, memberId) => {
-      // Look for transactions for this member to estimate monthly target
-      const memberTransactions = allTransactions.filter(t => t.memberId === memberId);
-      if (memberTransactions.length > 0) {
-        // Try to infer monthly target from transaction patterns
-        virtualMember.monthlyTarget = calculateMonthlyTargetFromTransactions(memberTransactions);
-      }
-    });
-
     // Combine current members with virtual members
     const allMembersToProcess = [...currentMembers, ...Array.from(virtualMembers.values())];
 
@@ -219,85 +209,116 @@ export async function updateMonthlyStats(userId, monthYear) {
     let totalOutstanding = 0;
     let membersWithDues = [];
 
-    for (const member of allMembersToProcess) {
-      console.log(`Processing member: ${member.name} (${member.id}), isVirtual: ${member.isVirtual}, monthlyTarget: ${member.monthlyTarget}`);
-
-      // Check if this member was created after the month we're calculating
-      const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
-      const isHistoricalMember = memberCreatedDate > endDate;
-
-      // For historical members (created after the month we're viewing), calculate target from transactions
-      let effectiveMonthlyTarget = member.monthlyTarget;
-
-      // Get all transactions before this month
-      const previousTransactions = allTransactions.filter(
-        (t) => t.memberId === member.id && t.date < `${monthYear}-01`
-      );
-
-      console.log(`Previous transactions for ${member.name}: ${previousTransactions.length}`);
-
-      // Group by month
-      const months = {};
-      previousTransactions.forEach((t) => {
-        const month = t.date.slice(0, 7);
-        if (!months[month]) months[month] = { paid: 0 };
-        months[month].paid += t.amount;
-      });
-
-      // Calculate cumulative balance from ALL previous months
-      let previousBalanceDue = 0;
-      Object.keys(months).forEach((month) => {
-        previousBalanceDue += effectiveMonthlyTarget - months[month].paid;
-      });
-
-      console.log(`Previous balance due for ${member.name}: ${previousBalanceDue}`);
-
-      // For virtual members, account for months with no transactions between first transaction and view month
-      if (member.isVirtual) {
-        const memberTransactions = allTransactions.filter(t => t.memberId === member.id);
-        if (memberTransactions.length > 0) {
-          // Find the earliest transaction date
-          const earliestTransaction = memberTransactions
-            .sort((a, b) => a.date.localeCompare(b.date))[0];
-          const earliestDate = new Date(earliestTransaction.date + 'T00:00:00Z');
-
-          let currentCheckDate = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
-          const viewMonthStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-
-          while (currentCheckDate < viewMonthStart) {
-            const monthKey = currentCheckDate.toISOString().slice(0, 7);
-            if (!months[monthKey]) {
-              // This month had no transactions, so they owe the full monthly target
-              previousBalanceDue += effectiveMonthlyTarget;
-              console.log(`Adding missing month ${monthKey} for virtual member ${member.name}: +${effectiveMonthlyTarget}`);
-            }
-            currentCheckDate.setMonth(currentCheckDate.getMonth() + 1);
-          }
+    // --- START: Group all previous transactions by member and month for efficiency ---
+    const previousTransactions = allTransactions.filter(
+      (t) => t.date < `${monthYear}-01`
+    );
+    const previousMonthsMap = new Map(); // <memberId, Map<monthKey, paidAmount>>
+    previousTransactions.forEach((t) => {
+        if (!previousMonthsMap.has(t.memberId)) {
+            previousMonthsMap.set(t.memberId, new Map());
         }
+        const memberMonths = previousMonthsMap.get(t.memberId);
+        const monthKey = t.date.slice(0, 7);
+        memberMonths.set(monthKey, (memberMonths.get(monthKey) || 0) + t.amount);
+    });
+
+    // Find earliest transaction for all members
+    const earliestTransactionMap = new Map(); // <memberId, Date>
+    allTransactions.forEach(t => {
+        const earliest = earliestTransactionMap.get(t.memberId);
+        // Ensure date is parsed correctly, assuming YYYY-MM-DD
+        const tDate = new Date(t.date + 'T00:00:00Z'); 
+        if (!earliest || tDate < earliest) {
+            earliestTransactionMap.set(t.memberId, tDate);
+        }
+    });
+    // --- END: Grouping ---
+
+    for (const member of allMembersToProcess) {
+      // Use a mutable copy if virtual so we can update its target
+      let currentMember = {...member}; 
+      console.log(`Processing member: ${currentMember.name} (${currentMember.id}), isVirtual: ${currentMember.isVirtual}, monthlyTarget: ${currentMember.monthlyTarget}`);
+
+      const memberCreatedDate = currentMember.createdOn?.toDate() || null;
+      const isHistoricalMember = memberCreatedDate && memberCreatedDate > endDate;
+
+      let effectiveMonthlyTarget = currentMember.monthlyTarget || 0;
+
+      // For virtual members, try to determine monthly target
+      if (currentMember.isVirtual) {
+          const memberTransactions = allTransactions.filter(t => t.memberId === currentMember.id);
+          if (memberTransactions.length > 0) {
+              effectiveMonthlyTarget = calculateMonthlyTargetFromTransactions(memberTransactions);
+              currentMember.monthlyTarget = effectiveMonthlyTarget; // Save it for totalTarget calc
+          }
       }
 
+      // --- START: REVISED PREVIOUS BALANCE CALCULATION ---
+      let previousBalanceDue = 0;
+      
+      const memberMonths = previousMonthsMap.get(currentMember.id) || new Map();
+
+      // Determine the first month to start charging them
+      const earliestTransactionDate = earliestTransactionMap.get(currentMember.id);
+      
+      let calculationStartDate = null;
+
+      if (memberCreatedDate) {
+          // Member exists, use their creation date
+          calculationStartDate = new Date(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1);
+      } else if (earliestTransactionDate) {
+          // Virtual member, use their first transaction's month
+          calculationStartDate = new Date(earliestTransactionDate.getFullYear(), earliestTransactionDate.getMonth(), 1);
+      }
+      
+      // Get the start of the month we are viewing
+      const viewMonthStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+
+      if (calculationStartDate && calculationStartDate < viewMonthStart) {
+          let checkDate = calculationStartDate;
+          
+          // Loop from their start month up to (but not including) the month we are viewing
+          while (checkDate < viewMonthStart) {
+              const monthKey = checkDate.toISOString().slice(0, 7);
+              const paidThisMonth = memberMonths.get(monthKey) || 0;
+              
+              previousBalanceDue += (effectiveMonthlyTarget - paidThisMonth);
+              
+              console.log(`Adding balance for ${currentMember.name} for ${monthKey}: ${effectiveMonthlyTarget} - ${paidThisMonth} = ${effectiveMonthlyTarget - paidThisMonth}. New prevBalance: ${previousBalanceDue}`);
+              
+              checkDate.setMonth(checkDate.getMonth() + 1);
+          }
+      } else {
+          console.log(`Skipping previous balance for ${currentMember.name}, no valid start date found before ${monthYear}.`);
+      }
+
+      console.log(`Previous balance due for ${currentMember.name}: ${previousBalanceDue}`);
+      // --- END: REVISED PREVIOUS BALANCE CALCULATION ---
+
       const paidThisMonth = transactionsThisMonth
-        .filter((t) => t.memberId === member.id)
+        .filter((t) => t.memberId === currentMember.id)
         .reduce((sum, t) => sum + t.amount, 0);
 
-      console.log(`Paid this month for ${member.name}: ${paidThisMonth}`);
+      console.log(`Paid this month for ${currentMember.name}: ${paidThisMonth}`);
 
+      // This is the key: Target for *this* month + all previous balance - paid *this* month
       const finalBalance =
         effectiveMonthlyTarget + previousBalanceDue - paidThisMonth;
 
-      console.log(`Final balance for ${member.name}: ${finalBalance}`);
+      console.log(`Final balance for ${currentMember.name}: ${finalBalance}`);
 
       if (finalBalance > 0) {
-        console.log(`Adding ${member.name} to membersWithDues with due: ${finalBalance}`);
+        console.log(`Adding ${currentMember.name} to membersWithDues with due: ${finalBalance}`);
         totalOutstanding += finalBalance;
         membersWithDues.push({
-          memberId: member.id,
-          memberName: member.name,
-          rank: member.rank || 0,
+          memberId: currentMember.id,
+          memberName: currentMember.name,
+          rank: currentMember.rank || 0,
           due: finalBalance,
           paidThisMonth,
           previousBalance: previousBalanceDue,
-          isVirtual: member.isVirtual || false,
+          isVirtual: currentMember.isVirtual || false,
           isHistorical: isHistoricalMember,
         });
       }
@@ -306,20 +327,39 @@ export async function updateMonthlyStats(userId, monthYear) {
     // Sort by rank instead of due amount
     membersWithDues.sort((a, b) => (a.rank || 0) - (b.rank || 0));
 
+    // --- START: REVISED TOTAL TARGET CALCULATION ---
     const totalTarget = allMembersToProcess.reduce((sum, m) => {
-      // Check if this member was created after the month we're calculating
-      const memberCreatedDate = m.createdOn?.toDate() || new Date(0);
-      const isHistoricalMember = memberCreatedDate > endDate;
+      const memberCreatedDate = m.createdOn?.toDate() || null;
       
-      // For historical members, use effective monthly target
-      let effectiveTarget = m.monthlyTarget;
-      if (isHistoricalMember && !m.isVirtual) {
-        const memberTransactions = allTransactions.filter(t => t.memberId === m.id);
-        effectiveTarget = calculateMonthlyTargetFromTransactions(memberTransactions);
+      // Determine if member should be included in this month's target
+      let includeInTarget = false;
+      if (memberCreatedDate) {
+          // Real member: include if created before or during this month
+          const memberStartMonth = new Date(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1);
+          if (memberStartMonth <= endDate) { // endDate is last day of viewed month
+              includeInTarget = true;
+          }
+      } else {
+          // Virtual member: include if they had *any* transaction (ever)
+          // and we estimated a target for them.
+          if (m.isVirtual && (m.monthlyTarget || 0) > 0) {
+             // More precise: check if their first transaction was before/during this month
+             const firstTransDate = earliestTransactionMap.get(m.id);
+             if (firstTransDate && firstTransDate <= endDate) {
+                includeInTarget = true;
+             }
+          }
+      }
+
+      if (includeInTarget) {
+          // We use m.monthlyTarget, which was updated for virtual members in the loop above
+          return sum + (m.monthlyTarget || 0);
       }
       
-      return sum + effectiveTarget;
+      return sum;
     }, 0);
+    // --- END: REVISED TOTAL TARGET CALCULATION ---
+
     const collectionRate =
       totalTarget > 0 ? Math.round((totalCollected / totalTarget) * 100) : 0;
 
@@ -330,7 +370,7 @@ export async function updateMonthlyStats(userId, monthYear) {
       totalOutstanding,
       totalTarget,
       collectionRate,
-      totalMembers: allMembersToProcess.length,
+      totalMembers: currentMembers.length, // Only count current, non-virtual members
       membersWithDues,
       updatedAt: Timestamp.now(),
     };
