@@ -11,8 +11,10 @@ import {
   Timestamp,
   writeBatch,
   deleteDoc,
+  getDocs,
 } from "firebase/firestore";
 import MemberListControls from "../components/MemberListControls";
+import { exportMemberMonthlyToExcel } from "../utils/excelExport";
 
 export default function LedgerPage({ userId }) {
   const [members, setMembers] = useState([]);
@@ -192,6 +194,40 @@ export default function LedgerPage({ userId }) {
     setDragOverIndex(null);
   };
 
+  const handleExportMemberMonth = async (member) => {
+    // Get current month from selected date
+    const [year, month] = selectedDate.split('-');
+    const monthYear = `${year}-${month}`;
+    
+    try {
+      // Fetch all transactions for this member
+      const transQuery = query(
+        collection(db, "users", userId, "transactions"),
+        where("memberId", "==", member.id)
+      );
+      
+      const snapshot = await getDocs(transQuery);
+      const allTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Filter for the selected month
+      const startDate = `${monthYear}-01`;
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+      const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+      
+      const monthTransactions = allTransactions.filter(t => t.date >= startDate && t.date <= endDate);
+      
+      exportMemberMonthlyToExcel({
+        member,
+        transactions: monthTransactions,
+        allTransactions, // Pass all transactions for cumulative calculation
+        monthYear
+      });
+    } catch (error) {
+      console.error('Error exporting member data:', error);
+      alert('Failed to export data. Please try again.');
+    }
+  };
+
   return (
     <div className="bg-white p-3 md:p-6 rounded-lg md:rounded-xl shadow-md">
       <div className="flex flex-wrap justify-between items-center mb-4 md:mb-6 gap-2 md:gap-4">
@@ -249,38 +285,51 @@ export default function LedgerPage({ userId }) {
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 md:gap-4">
-                  <div className="flex items-center gap-2 md:gap-3">
-                    {sortBy === "rank" && (
-                      <div
-                        className="flex items-center justify-center w-8 h-8 -ml-1 rounded-md cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 bg-gray-100/50 sm:bg-transparent"
-                        title="Drag to reorder"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 md:gap-3">
+                      {sortBy === "rank" && (
+                        <div
+                          className="flex items-center justify-center w-8 h-8 -ml-1 rounded-md cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 bg-gray-100/50 sm:bg-transparent"
+                          title="Drag to reorder"
                         >
-                          <line x1="8" y1="6" x2="21" y2="6"></line>
-                          <line x1="8" y1="12" x2="21" y2="12"></line>
-                          <line x1="8" y1="18" x2="21" y2="18"></line>
-                          <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                          <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                          <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                        </svg>
-                      </div>
-                    )}
-                    <span className="font-bold text-base md:text-lg">
-                      {member.name}
-                    </span>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <line x1="8" y1="6" x2="21" y2="6"></line>
+                            <line x1="8" y1="12" x2="21" y2="12"></line>
+                            <line x1="8" y1="18" x2="21" y2="18"></line>
+                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                          </svg>
+                        </div>
+                      )}
+                      <span className="font-bold text-base md:text-lg">
+                        {member.name}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleExportMemberMonth(member)}
+                      className="text-xs sm:text-sm px-2 sm:px-3 py-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-1"
+                      title="Download monthly Excel report"
+                    >
+                      <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="hidden sm:inline">Excel</span>
+                    </button>
                   </div>
-                  {hasPaid ? (
+                  <div className="flex flex-wrap items-center gap-1.5 md:gap-2 sm:justify-end">
+                    {hasPaid ? (
                     <div className="font-semibold text-green-800 text-sm md:text-base">
                       Paid Today: ₹{totalPaidToday.toLocaleString()}
                     </div>
@@ -324,6 +373,7 @@ export default function LedgerPage({ userId }) {
                       </div>
                     </div>
                   )}
+                  </div>
                 </div>
                 {hasPaid && (
                   <div className="mt-2 md:mt-3 space-y-1.5 md:space-y-2">

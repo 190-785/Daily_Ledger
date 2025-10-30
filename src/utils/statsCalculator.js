@@ -154,22 +154,22 @@ export async function updateMonthlyStats(userId, monthYear) {
       59,
       59
     );
+    const endDateStr = `${monthYear}-${endDate.getDate().toString().padStart(2, '0')}`;
 
     // Get this month's transactions
     const currentMonthQuery = query(
       collection(db, "users", userId, "transactions"),
-      where("timestamp", ">=", startDate),
-      where("timestamp", "<=", endDate)
+      where("date", ">=", `${monthYear}-01`),
+      where("date", "<=", endDateStr)
     );
     const currentMonthSnapshot = await getDocs(currentMonthQuery);
     const transactionsThisMonth = currentMonthSnapshot.docs.map((doc) =>
       doc.data()
     );
 
-    const totalCollected = transactionsThisMonth.reduce(
-      (sum, t) => sum + t.amount,
-      0
-    );
+    const totalCollected = transactionsThisMonth
+      .filter(t => t.type !== 'outstanding_cleared')
+      .reduce((sum, t) => sum + t.amount, 0);
 
     // Get ALL transactions for cumulative balance calculation
     const allTransactionsSnapshot = await getDocs(
@@ -185,7 +185,7 @@ export async function updateMonthlyStats(userId, monthYear) {
     for (const member of members) {
       // Get all transactions before this month
       const previousTransactions = allTransactions.filter(
-        (t) => t.memberId === member.id && t.timestamp.toDate() < startDate
+        (t) => t.memberId === member.id && t.date < `${monthYear}-01`
       );
 
       // Group by month

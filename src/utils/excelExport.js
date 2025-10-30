@@ -188,3 +188,122 @@ export const exportMonthlyToExcel = ({ members, transactions, monthYear, listNam
   // Download file
   XLSX.writeFile(wb, filename);
 };
+
+/**
+ * Exports a single member's monthly data to Excel
+ * @param {Object} params - Export parameters
+ * @param {Object} params.member - Member object
+ * @param {Array} params.transactions - Transactions for the selected month
+ * @param {Array} params.allTransactions - All transactions for the member
+ * @param {string} params.monthYear - Month in YYYY-MM format
+ */
+export const exportMemberMonthlyToExcel = ({ member, transactions, allTransactions, monthYear }) => {
+  // Parse month and year
+  const [year, month] = monthYear.split('-');
+  const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+  const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
+  
+  // Get month name for display
+  const monthName = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  
+  // Build data array
+  const data = [];
+  
+  // Title
+  data.push([`Monthly Statement - ${member.name}`]);
+  data.push([monthName]);
+  data.push([]);
+  
+  // Header
+  data.push(['Date', 'Day', 'Amount', 'Status']);
+  
+  // Build transaction map by date
+  const transactionMap = {};
+  let monthlyTotal = 0;
+  
+  transactions.forEach(t => {
+    if (!transactionMap[t.date]) {
+      transactionMap[t.date] = 0;
+    }
+    transactionMap[t.date] += t.amount;
+    monthlyTotal += t.amount;
+  });
+  
+  // Add daily rows
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = `${year}-${month}-${String(day).padStart(2, '0')}`;
+    const dateObj = new Date(date);
+    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+    const amount = transactionMap[date] || 0;
+    const status = amount > 0 ? 'Paid' : '-';
+    
+    data.push([
+      date,
+      dayName,
+      amount > 0 ? amount : '',
+      status
+    ]);
+  }
+  
+  // Summary section
+  data.push([]);
+  data.push(['MONTHLY SUMMARY']);
+  data.push(['Total Paid This Month', monthlyTotal]);
+  data.push(['Monthly Target', member.monthlyTarget || 0]);
+  
+  const monthlyBalance = monthlyTotal - (member.monthlyTarget || 0);
+  data.push(['Monthly Balance', monthlyBalance]);
+  
+  // Calculate cumulative balance
+  const totalPaidAllTime = allTransactions.reduce((sum, t) => sum + t.amount, 0);
+  
+  // Calculate total expected from member creation to end of selected month
+  const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
+  const endOfSelectedMonth = new Date(parseInt(year), parseInt(month), 0);
+  
+  let totalExpected = 0;
+  let checkDate = new Date(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1);
+  while (checkDate <= endOfSelectedMonth) {
+    totalExpected += member.monthlyTarget || 0;
+    checkDate.setMonth(checkDate.getMonth() + 1);
+  }
+  
+  const cumulativeBalance = totalPaidAllTime - totalExpected;
+  data.push(['Cumulative Balance (All Time)', cumulativeBalance]);
+  data.push(['Status', cumulativeBalance >= 0 ? 'Paid Full/Credit' : 'Balance Due']);
+  
+  // Payment statistics
+  const daysWithPayment = Object.keys(transactionMap).length;
+  const totalDays = daysInMonth;
+  data.push([]);
+  data.push(['Payment Statistics']);
+  data.push(['Days with Payment', daysWithPayment]);
+  data.push(['Days without Payment', totalDays - daysWithPayment]);
+  data.push(['Payment Rate', `${Math.round((daysWithPayment / totalDays) * 100)}%`]);
+  
+  if (monthlyTotal > 0) {
+    const avgPerPaymentDay = monthlyTotal / daysWithPayment;
+    data.push(['Average per Payment Day', Math.round(avgPerPaymentDay)]);
+  }
+  
+  // Create worksheet
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 12 }, // Date
+    { wch: 10 }, // Day
+    { wch: 12 }, // Amount
+    { wch: 15 }  // Status
+  ];
+  
+  // Create workbook
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, monthName);
+  
+  // Generate filename
+  const filename = `${member.name.replace(/\s+/g, '_')}_${monthName.replace(' ', '_')}.xlsx`;
+  
+  // Download file
+  XLSX.writeFile(wb, filename);
+};

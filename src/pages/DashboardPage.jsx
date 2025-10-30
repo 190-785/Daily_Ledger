@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
+import { collection, query, where, getDocs, onSnapshot, addDoc, Timestamp } from "firebase/firestore";
 import { db } from "/src/firebase.js";
 import { updateDailyStats, updateMonthlyStats } from "/src/utils/statsCalculator.js";
 import Card, { CardHeader, CardTitle, CardContent } from "/src/components/Card.jsx";
@@ -96,6 +96,13 @@ export default function DashboardPage({ userId }) {
     }
   }, [viewTab, selectedDate, selectedMonth, calculateDailyStats, calculateMonthlyStats]);
 
+  // Recalculate monthly stats when transactions change
+  useEffect(() => {
+    if (viewTab === "monthly" && selectedMonth) {
+      calculateMonthlyStats();
+    }
+  }, [allTransactions, viewTab, selectedMonth, calculateMonthlyStats]);
+
   const handleExportToExcel = () => {
     if (viewTab !== "monthly") {
       alert('Please switch to Monthly View to export data');
@@ -108,13 +115,12 @@ export default function DashboardPage({ userId }) {
     }
 
     // Get all transactions for the selected month (across all members)
-    const startDate = new Date(`${selectedMonth}-01T00:00:00Z`);
+    const startDateStr = `${selectedMonth}-01`;
+    const [year, month] = selectedMonth.split('-');
+    const endDateStr = `${year}-${month}-${new Date(parseInt(year), parseInt(month), 0).getDate().toString().padStart(2, '0')}`;
+    
     const monthTransactions = allTransactions.filter((t) => {
-      const tDate = t.timestamp.toDate();
-      return (
-        tDate.getFullYear() === startDate.getFullYear() &&
-        tDate.getMonth() === startDate.getMonth()
-      );
+      return t.date >= startDateStr && t.date <= endDateStr;
     });
 
     // Export to Excel
@@ -124,6 +130,67 @@ export default function DashboardPage({ userId }) {
       monthYear: selectedMonth,
       listName: 'Daily Ledger'
     });
+  };
+
+  const handleClearThisMonthOutstanding = async (memberData) => {
+    const confirmMessage = `Are you sure you want to clear the outstanding balance for ${memberData.memberName} in ${selectedMonth}?\n\nThis will mark the outstanding as cleared without adding any payment.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      // Find the member
+      const member = members.find(m => m.name === memberData.memberName);
+      if (!member) {
+        alert('Member not found.');
+        return;
+      }
+
+      // Calculate this month's outstanding
+      const [year, month] = selectedMonth.split('-');
+      
+      // Get this month's transactions for the member
+      const monthQuery = query(
+        collection(db, "users", userId, "transactions"),
+        where("memberId", "==", member.id),
+        where("date", ">=", `${selectedMonth}-01`),
+        where("date", "<=", `${year}-${month}-${new Date(parseInt(year), parseInt(month), 0).getDate().toString().padStart(2, '0')}`)
+      );
+      
+      const snapshot = await getDocs(monthQuery);
+      const monthTransactions = snapshot.docs.map(doc => doc.data());
+      
+      const paidThisMonth = monthTransactions.reduce((sum, t) => sum + t.amount, 0);
+      const outstandingThisMonth = member.monthlyTarget - paidThisMonth;
+      
+      if (outstandingThisMonth <= 0) {
+        alert('No outstanding balance to clear for this month.');
+        return;
+      }
+
+      // Add outstanding cleared transaction on the last day of the month
+      const lastDayOfMonth = new Date(parseInt(year), parseInt(month), 0);
+      const clearanceDate = lastDayOfMonth.toISOString().split('T')[0];
+      
+      await addDoc(collection(db, "users", userId, "transactions"), {
+        memberId: member.id,
+        memberName: member.name,
+        amount: outstandingThisMonth,
+        date: clearanceDate,
+        timestamp: Timestamp.fromDate(new Date(clearanceDate + 'T12:00:00Z')),
+        description: `⚡ Outstanding cleared for ${selectedMonth}`,
+        type: 'outstanding_cleared'
+      });
+
+      // Recalculate stats
+      await calculateMonthlyStats();
+      
+      alert(`Successfully cleared outstanding balance of ₹${outstandingThisMonth.toLocaleString()} for ${memberData.memberName} in ${selectedMonth}`);
+    } catch (error) {
+      console.error('Error clearing outstanding balance:', error);
+      alert('Failed to clear outstanding balance. Please try again.');
+    }
   };
 
   return (
@@ -405,14 +472,26 @@ export default function DashboardPage({ userId }) {
                           key={index}
                           className="bg-rose-900/20 border border-rose-700/30 p-5 rounded-lg hover:bg-rose-900/30 transition-all hover:scale-[1.01] backdrop-blur-sm"
                         >
-                          <div className="flex justify-between items-center">
-                            <p className="font-bold text-lg text-slate-200">{member.memberName}</p>
-                            <div className="text-right ml-4">
-                              <p className="text-xs text-rose-300/80 mb-1 uppercase tracking-wide">Total Outstanding</p>
-                              <p className="font-bold text-2xl text-rose-400">
-                                ₹{member.due.toLocaleString()}
-                              </p>
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                            <div className="flex-1">
+                              <p className="font-bold text-lg text-slate-200">{member.memberName}</p>
+                              <div className="mt-2">
+                                <p className="text-xs text-rose-300/80 mb-1 uppercase tracking-wide">Total Outstanding</p>
+                                <p className="font-bold text-2xl text-rose-400">
+                                  ₹{member.due.toLocaleString()}
+                                </p>
+                              </div>
                             </div>
+                            <button
+                              onClick={() => handleClearThisMonthOutstanding(member)}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-2 whitespace-nowrap"
+                              title="Clear outstanding balance for this month"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Clear This Month
+                            </button>
                           </div>
                         </div>
                       ))
