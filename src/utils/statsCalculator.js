@@ -136,11 +136,11 @@ export async function updateDailyStats(userId, date) {
  */
 export async function updateMonthlyStats(userId, monthYear) {
   try {
-    // Get all members
+    // Get all current members
     const membersSnapshot = await getDocs(
       collection(db, "users", userId, "members")
     );
-    const members = membersSnapshot.docs.map((doc) => ({
+    const currentMembers = membersSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
@@ -167,10 +167,6 @@ export async function updateMonthlyStats(userId, monthYear) {
       doc.data()
     );
 
-    const totalCollected = transactionsThisMonth
-      .filter(t => t.type !== 'outstanding_cleared')
-      .reduce((sum, t) => sum + t.amount, 0);
-
     // Get ALL transactions for cumulative balance calculation
     const allTransactionsSnapshot = await getDocs(
       collection(db, "users", userId, "transactions")
@@ -179,14 +175,72 @@ export async function updateMonthlyStats(userId, monthYear) {
       doc.data()
     );
 
+    // Create a map of current members for quick lookup
+    const membersMap = new Map();
+    currentMembers.forEach(member => {
+      membersMap.set(member.id, member);
+    });
+
+    // Find memberIds that appear in ANY transactions but don't exist as current members
+    const virtualMembers = new Map();
+    allTransactions.forEach(transaction => {
+      if (!membersMap.has(transaction.memberId) && !virtualMembers.has(transaction.memberId)) {
+        console.log(`Found virtual member: ${transaction.memberName} (${transaction.memberId})`);
+        // Create a virtual member with default values
+        virtualMembers.set(transaction.memberId, {
+          id: transaction.memberId,
+          name: transaction.memberName,
+          monthlyTarget: 0, // Will be calculated based on transactions
+          createdOn: null, // Unknown creation date
+          isVirtual: true // Mark as virtual for special handling
+        });
+      }
+    });
+
+    console.log(`Processing ${currentMembers.length} current members and ${virtualMembers.size} virtual members for ${monthYear}`);
+
+    // For virtual members, try to determine monthly target from historical patterns
+    virtualMembers.forEach((virtualMember, memberId) => {
+      // Look for transactions for this member to estimate monthly target
+      const memberTransactions = allTransactions.filter(t => t.memberId === memberId);
+      if (memberTransactions.length > 0) {
+        // Try to infer monthly target from transaction patterns
+        virtualMember.monthlyTarget = calculateMonthlyTargetFromTransactions(memberTransactions);
+      }
+    });
+
+    // Combine current members with virtual members
+    const allMembersToProcess = [...currentMembers, ...Array.from(virtualMembers.values())];
+
+    const totalCollected = transactionsThisMonth
+      .filter(t => t.type !== 'outstanding_cleared')
+      .reduce((sum, t) => sum + t.amount, 0);
+
     let totalOutstanding = 0;
     let membersWithDues = [];
 
-    for (const member of members) {
+    for (const member of allMembersToProcess) {
+      console.log(`Processing member: ${member.name} (${member.id}), isVirtual: ${member.isVirtual}, monthlyTarget: ${member.monthlyTarget}`);
+
+      // Check if this member was created after the month we're calculating
+      const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
+      const isHistoricalMember = memberCreatedDate > endDate;
+
+      // For historical members (created after the month we're viewing), calculate target from transactions
+      let effectiveMonthlyTarget = member.monthlyTarget;
+      if (isHistoricalMember && !member.isVirtual) {
+        console.log(`Member ${member.name} was created after ${monthYear}, calculating target from transactions`);
+        const memberTransactions = allTransactions.filter(t => t.memberId === member.id);
+        effectiveMonthlyTarget = calculateMonthlyTargetFromTransactions(memberTransactions);
+        console.log(`Effective monthly target for ${member.name}: ${effectiveMonthlyTarget}`);
+      }
+
       // Get all transactions before this month
       const previousTransactions = allTransactions.filter(
         (t) => t.memberId === member.id && t.date < `${monthYear}-01`
       );
+
+      console.log(`Previous transactions for ${member.name}: ${previousTransactions.length}`);
 
       // Group by month
       const months = {};
@@ -199,28 +253,48 @@ export async function updateMonthlyStats(userId, monthYear) {
       // Calculate cumulative balance from ALL previous months
       let previousBalanceDue = 0;
       Object.keys(months).forEach((month) => {
-        previousBalanceDue += member.monthlyTarget - months[month].paid;
+        previousBalanceDue += effectiveMonthlyTarget - months[month].paid;
       });
 
-      // Add balance for months with no transactions
-      const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
-      let currentCheckDate = new Date(memberCreatedDate);
-      while (currentCheckDate < startDate) {
-        const monthKey = currentCheckDate.toISOString().slice(0, 7);
-        if (!months[monthKey] && currentCheckDate >= memberCreatedDate) {
-          previousBalanceDue += member.monthlyTarget;
+      console.log(`Previous balance due for ${member.name}: ${previousBalanceDue}`);
+
+      // For virtual members, account for months with no transactions between first transaction and view month
+      if (member.isVirtual) {
+        const memberTransactions = allTransactions.filter(t => t.memberId === member.id);
+        if (memberTransactions.length > 0) {
+          // Find the earliest transaction date
+          const earliestTransaction = memberTransactions
+            .sort((a, b) => a.date.localeCompare(b.date))[0];
+          const earliestDate = new Date(earliestTransaction.date + 'T00:00:00Z');
+
+          let currentCheckDate = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+          const viewMonthStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+
+          while (currentCheckDate < viewMonthStart) {
+            const monthKey = currentCheckDate.toISOString().slice(0, 7);
+            if (!months[monthKey]) {
+              // This month had no transactions, so they owe the full monthly target
+              previousBalanceDue += effectiveMonthlyTarget;
+              console.log(`Adding missing month ${monthKey} for virtual member ${member.name}: +${effectiveMonthlyTarget}`);
+            }
+            currentCheckDate.setMonth(currentCheckDate.getMonth() + 1);
+          }
         }
-        currentCheckDate.setMonth(currentCheckDate.getMonth() + 1);
       }
 
       const paidThisMonth = transactionsThisMonth
         .filter((t) => t.memberId === member.id)
         .reduce((sum, t) => sum + t.amount, 0);
 
+      console.log(`Paid this month for ${member.name}: ${paidThisMonth}`);
+
       const finalBalance =
-        member.monthlyTarget + previousBalanceDue - paidThisMonth;
+        effectiveMonthlyTarget + previousBalanceDue - paidThisMonth;
+
+      console.log(`Final balance for ${member.name}: ${finalBalance}`);
 
       if (finalBalance > 0) {
+        console.log(`Adding ${member.name} to membersWithDues with due: ${finalBalance}`);
         totalOutstanding += finalBalance;
         membersWithDues.push({
           memberId: member.id,
@@ -229,6 +303,8 @@ export async function updateMonthlyStats(userId, monthYear) {
           due: finalBalance,
           paidThisMonth,
           previousBalance: previousBalanceDue,
+          isVirtual: member.isVirtual || false,
+          isHistorical: isHistoricalMember,
         });
       }
     }
@@ -236,7 +312,20 @@ export async function updateMonthlyStats(userId, monthYear) {
     // Sort by rank instead of due amount
     membersWithDues.sort((a, b) => (a.rank || 0) - (b.rank || 0));
 
-    const totalTarget = members.reduce((sum, m) => sum + m.monthlyTarget, 0);
+    const totalTarget = allMembersToProcess.reduce((sum, m) => {
+      // Check if this member was created after the month we're calculating
+      const memberCreatedDate = m.createdOn?.toDate() || new Date(0);
+      const isHistoricalMember = memberCreatedDate > endDate;
+      
+      // For historical members, use effective monthly target
+      let effectiveTarget = m.monthlyTarget;
+      if (isHistoricalMember && !m.isVirtual) {
+        const memberTransactions = allTransactions.filter(t => t.memberId === m.id);
+        effectiveTarget = calculateMonthlyTargetFromTransactions(memberTransactions);
+      }
+      
+      return sum + effectiveTarget;
+    }, 0);
     const collectionRate =
       totalTarget > 0 ? Math.round((totalCollected / totalTarget) * 100) : 0;
 
@@ -247,7 +336,7 @@ export async function updateMonthlyStats(userId, monthYear) {
       totalOutstanding,
       totalTarget,
       collectionRate,
-      totalMembers: members.length,
+      totalMembers: allMembersToProcess.length,
       membersWithDues,
       updatedAt: Timestamp.now(),
     };
@@ -262,4 +351,36 @@ export async function updateMonthlyStats(userId, monthYear) {
     console.error("Error updating monthly stats:", error);
     throw error;
   }
+}
+
+/**
+ * Calculate monthly target for virtual members based on transaction patterns
+ */
+function calculateMonthlyTargetFromTransactions(memberTransactions) {
+  if (memberTransactions.length === 0) return 0;
+
+  // Sort transactions by date
+  const sortedTransactions = memberTransactions.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Group transactions by month
+  const monthlyTotals = {};
+  sortedTransactions.forEach(transaction => {
+    const month = transaction.date.slice(0, 7); // YYYY-MM format
+    if (!monthlyTotals[month]) {
+      monthlyTotals[month] = 0;
+    }
+    monthlyTotals[month] += transaction.amount;
+  });
+
+  // Find the most common monthly payment amount
+  const amounts = Object.values(monthlyTotals);
+  if (amounts.length === 0) return 0;
+
+  // For virtual members, assume the monthly target is the most common payment amount
+  // This is a heuristic - you might want to refine this logic
+  const mostCommonAmount = amounts.sort((a,b) =>
+    amounts.filter(v => v===a).length - amounts.filter(v => v===b).length
+  ).pop();
+
+  return mostCommonAmount || 0;
 }

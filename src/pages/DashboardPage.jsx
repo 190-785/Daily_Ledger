@@ -294,6 +294,23 @@ export default function DashboardPage({ userId }) {
               )}
               {viewTab === "monthly" && (
                 <>
+                  <div className="mb-4">
+                    <button
+                      onClick={async () => {
+                        try {
+                          setMonthlyStats(null);
+                          await updateMonthlyStats(userId, selectedMonth);
+                          alert("Monthly stats recalculated successfully!");
+                        } catch (error) {
+                          console.error("Error recalculating monthly stats:", error);
+                          alert("Failed to recalculate monthly stats");
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Recalculate Stats
+                    </button>
+                  </div>
                   <input
                     type="month"
                     value={selectedMonth}
