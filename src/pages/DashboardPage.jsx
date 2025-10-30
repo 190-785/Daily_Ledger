@@ -1,8 +1,24 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { collection, query, where, getDocs, onSnapshot, addDoc, Timestamp } from "firebase/firestore";
+import React, { useState, useEffect } from "react";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  onSnapshot,
+  addDoc,
+  Timestamp,
+  doc,
+} from "firebase/firestore";
 import { db } from "/src/firebase.js";
-import { updateDailyStats, updateMonthlyStats } from "/src/utils/statsCalculator.js";
-import Card, { CardHeader, CardTitle, CardContent } from "/src/components/Card.jsx";
+import {
+  updateDailyStats,
+  updateMonthlyStats,
+} from "/src/utils/statsCalculator.js";
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "/src/components/Card.jsx";
 import { Heading, Text } from "/src/components/Typography.jsx";
 import Button from "/src/components/Button.jsx";
 import LoadingSpinner, { EmptyState } from "/src/components/LoadingSpinner.jsx";
@@ -51,74 +67,113 @@ export default function DashboardPage({ userId }) {
     };
   }, [userId]);
 
-  // This function will now force a recalculation every time, ignoring the cache.
-  const calculateDailyStats = useCallback(async () => {
+  // In src/pages/DashboardPage.jsx, after your useState hooks:
+
+// This useEffect handles REACTIVE updates to the dashboard
+  // It listens for changes to the cached stats docs
+  useEffect(() => {
     setLoading(true);
-    try {
-      const stats = await updateDailyStats(userId, selectedDate);
-      
-      const dateQuery = query(
-        collection(db, "users", userId, "transactions"),
-        where("date", "==", selectedDate)
-      );
-      const dateSnapshot = await getDocs(dateQuery);
-      const recentTransactions = dateSnapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      })).sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate());
+    if (viewTab === "daily") {
+      const dailyStatsRef = doc(db, "users", userId, "daily_stats", selectedDate);
 
-      setDailyStats({ ...stats, recentTransactions });
-    } catch (error) {
-      console.error("Error calculating daily stats:", error);
+      const unsubscribe = onSnapshot(dailyStatsRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setDailyStats(docSnap.data());
+        } else {
+          // If no stats doc exists, trigger an update to create one
+          updateDailyStats(userId, selectedDate).catch(error => { // 'stats' variable removed
+            console.error("Error calculating daily stats:", error);
+          });
+        }
+        setLoading(false);
+      });
+
+      return () => unsubscribe();
+    } else {
+      const monthlyStatsRef = doc(db, "users", userId, "monthly_stats", selectedMonth);
+
+      const unsubscribe = onSnapshot(monthlyStatsRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setMonthlyStats(docSnap.data());
+        } else {
+          // If no stats doc exists, trigger an update
+          updateMonthlyStats(userId, selectedMonth).catch(error => { // 'stats' variable removed
+            console.error("Error calculating monthly stats:", error);
+            setMonthlyStats(null); // Set to null on error
+          });
+        }
+        setLoading(false);
+      });
+
+      return () => unsubscribe();
     }
-    setLoading(false);
-  }, [userId, selectedDate]);
-  
-  // This function will also force a recalculation every time.
-  const calculateMonthlyStats = useCallback(async () => {
-    setLoading(true);
-    try {
-        const stats = await updateMonthlyStats(userId, selectedMonth);
-        setMonthlyStats(stats);
-    } catch (error) {
-        console.error("Error calculating monthly stats:", error);
-        setMonthlyStats(null); // Set to null on error
-    }
-    setLoading(false);
-  }, [userId, selectedMonth]);
+  }, [viewTab, selectedDate, selectedMonth, userId]);
 
-
+  // This useEffect fetches NON-CACHED UI data (recent transactions for today)
+  // It runs separately from the stats cache.
   useEffect(() => {
     if (viewTab === "daily") {
-      calculateDailyStats();
-    } else {
-      calculateMonthlyStats();
-    }
-  }, [viewTab, selectedDate, selectedMonth, calculateDailyStats, calculateMonthlyStats]);
+      const fetchRecentTransactions = async () => {
+        const dateQuery = query(
+          collection(db, "users", userId, "transactions"),
+          where("date", "==", selectedDate)
+        );
+        const dateSnapshot = await getDocs(dateQuery);
+        const recentTransactions = dateSnapshot.docs
+          .map((d) => ({
+            id: d.id,
+            ...d.data(),
+          }))
+          .sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate());
 
-  // Recalculate monthly stats when transactions change
+        // We must set state like this to preserve the cached stats
+        setDailyStats((prevStats) => ({ ...prevStats, recentTransactions }));
+      };
+      fetchRecentTransactions();
+    }
+  }, [viewTab, selectedDate, userId]);
+
+  // This useEffect handles CACHE INVALIDATION.
+  // When transactions change, it forces a recalculation of the stats
+  // which then triggers the onSnapshot listeners above.
   useEffect(() => {
-    if (viewTab === "monthly" && selectedMonth) {
-      calculateMonthlyStats();
+    // only run if transactions have loaded
+    if (allTransactions.length > 0) {
+      // Update stats for the *current* view
+      // This ensures the cache is fresh
+      updateDailyStats(userId, selectedDate).catch((error) => {
+        console.error("Failed to auto-update daily stats:", error);
+      });
+      updateMonthlyStats(userId, getMonthYear(new Date(selectedDate))).catch(
+        (error) => {
+          console.error("Failed to auto-update monthly stats:", error);
+        }
+      );
     }
-  }, [allTransactions, viewTab, selectedMonth, calculateMonthlyStats]);
-
+  }, [allTransactions, selectedDate, userId]); // Re-run when transactions or date change
   const handleExportToExcel = () => {
     if (viewTab !== "monthly") {
-      alert('Please switch to Monthly View to export data');
+      alert("Please switch to Monthly View to export data");
       return;
     }
 
     if (!selectedMonth) {
-      alert('Please select a month to export');
+      alert("Please select a month to export");
       return;
     }
 
     // Get all transactions for the selected month (across all members)
     const startDateStr = `${selectedMonth}-01`;
-    const [year, month] = selectedMonth.split('-');
-    const endDateStr = `${year}-${month}-${new Date(parseInt(year), parseInt(month), 0).getDate().toString().padStart(2, '0')}`;
-    
+    const [year, month] = selectedMonth.split("-");
+    const endDateStr = `${year}-${month}-${new Date(
+      parseInt(year),
+      parseInt(month),
+      0
+    )
+      .getDate()
+      .toString()
+      .padStart(2, "0")}`;
+
     const monthTransactions = allTransactions.filter((t) => {
       return t.date >= startDateStr && t.date <= endDateStr;
     });
@@ -128,68 +183,79 @@ export default function DashboardPage({ userId }) {
       members,
       transactions: monthTransactions,
       monthYear: selectedMonth,
-      listName: 'Daily Ledger'
+      listName: "Daily Ledger",
     });
   };
 
   const handleClearThisMonthOutstanding = async (memberData) => {
     const confirmMessage = `Are you sure you want to clear the outstanding balance for ${memberData.memberName} in ${selectedMonth}?\n\nThis will mark the outstanding as cleared without adding any payment.`;
-    
+
     if (!window.confirm(confirmMessage)) {
       return;
     }
 
     try {
       // Find the member
-      const member = members.find(m => m.name === memberData.memberName);
+      const member = members.find((m) => m.name === memberData.memberName);
       if (!member) {
-        alert('Member not found.');
+        alert("Member not found.");
         return;
       }
 
       // Calculate this month's outstanding
-      const [year, month] = selectedMonth.split('-');
-      
+      const [year, month] = selectedMonth.split("-");
+
       // Get this month's transactions for the member
       const monthQuery = query(
         collection(db, "users", userId, "transactions"),
         where("memberId", "==", member.id),
         where("date", ">=", `${selectedMonth}-01`),
-        where("date", "<=", `${year}-${month}-${new Date(parseInt(year), parseInt(month), 0).getDate().toString().padStart(2, '0')}`)
+        where(
+          "date",
+          "<=",
+          `${year}-${month}-${new Date(parseInt(year), parseInt(month), 0)
+            .getDate()
+            .toString()
+            .padStart(2, "0")}`
+        )
       );
-      
+
       const snapshot = await getDocs(monthQuery);
-      const monthTransactions = snapshot.docs.map(doc => doc.data());
-      
-      const paidThisMonth = monthTransactions.reduce((sum, t) => sum + t.amount, 0);
+      const monthTransactions = snapshot.docs.map((doc) => doc.data());
+
+      const paidThisMonth = monthTransactions.reduce(
+        (sum, t) => sum + t.amount,
+        0
+      );
       const outstandingThisMonth = member.monthlyTarget - paidThisMonth;
-      
+
       if (outstandingThisMonth <= 0) {
-        alert('No outstanding balance to clear for this month.');
+        alert("No outstanding balance to clear for this month.");
         return;
       }
 
       // Add outstanding cleared transaction on the last day of the month
       const lastDayOfMonth = new Date(parseInt(year), parseInt(month), 0);
-      const clearanceDate = lastDayOfMonth.toISOString().split('T')[0];
-      
+      const clearanceDate = lastDayOfMonth.toISOString().split("T")[0];
+
       await addDoc(collection(db, "users", userId, "transactions"), {
         memberId: member.id,
         memberName: member.name,
         amount: outstandingThisMonth,
         date: clearanceDate,
-        timestamp: Timestamp.fromDate(new Date(clearanceDate + 'T12:00:00Z')),
+        timestamp: Timestamp.fromDate(new Date(clearanceDate + "T12:00:00Z")),
         description: `⚡ Outstanding cleared for ${selectedMonth}`,
-        type: 'outstanding_cleared'
+        type: "outstanding_cleared",
       });
 
       // Recalculate stats
-      await calculateMonthlyStats();
+// Recalculate stats by calling the imported function directly
+      await updateMonthlyStats(userId, selectedMonth);
       
       alert(`Successfully cleared outstanding balance of ₹${outstandingThisMonth.toLocaleString()} for ${memberData.memberName} in ${selectedMonth}`);
     } catch (error) {
-      console.error('Error clearing outstanding balance:', error);
-      alert('Failed to clear outstanding balance. Please try again.');
+      console.error("Error clearing outstanding balance:", error);
+      alert("Failed to clear outstanding balance. Please try again.");
     }
   };
 
@@ -221,8 +287,18 @@ export default function DashboardPage({ userId }) {
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
                     title="Export monthly data to Excel"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
                     </svg>
                     <span className="hidden sm:inline">Export to Excel</span>
                   </button>
@@ -267,10 +343,17 @@ export default function DashboardPage({ userId }) {
                           <span className="text-2xl">👥</span>
                         </div>
                       </div>
-                      <Text size="sm" weight="semibold" className="text-blue-300/80 uppercase tracking-wider text-xs">
+                      <Text
+                        size="sm"
+                        weight="semibold"
+                        className="text-blue-300/80 uppercase tracking-wider text-xs"
+                      >
                         Total Members
                       </Text>
-                      <Heading level="h2" className="text-blue-100 mt-3 text-4xl font-bold">
+                      <Heading
+                        level="h2"
+                        className="text-blue-100 mt-3 text-4xl font-bold"
+                      >
                         {dailyStats.totalMembers}
                       </Heading>
                     </CardContent>
@@ -282,10 +365,17 @@ export default function DashboardPage({ userId }) {
                           <span className="text-2xl">💰</span>
                         </div>
                       </div>
-                      <Text size="sm" weight="semibold" className="text-emerald-300/80 uppercase tracking-wider text-xs">
+                      <Text
+                        size="sm"
+                        weight="semibold"
+                        className="text-emerald-300/80 uppercase tracking-wider text-xs"
+                      >
                         Collected Today
                       </Text>
-                      <Heading level="h2" className="text-emerald-100 mt-3 text-4xl font-bold">
+                      <Heading
+                        level="h2"
+                        className="text-emerald-100 mt-3 text-4xl font-bold"
+                      >
                         ₹{dailyStats.totalCollected.toLocaleString()}
                       </Heading>
                     </CardContent>
@@ -297,10 +387,17 @@ export default function DashboardPage({ userId }) {
                           <span className="text-2xl">⏳</span>
                         </div>
                       </div>
-                      <Text size="sm" weight="semibold" className="text-amber-300/80 uppercase tracking-wider text-xs">
+                      <Text
+                        size="sm"
+                        weight="semibold"
+                        className="text-amber-300/80 uppercase tracking-wider text-xs"
+                      >
                         Didn't Pay
                       </Text>
-                      <Heading level="h2" className="text-amber-100 mt-3 text-4xl font-bold">
+                      <Heading
+                        level="h2"
+                        className="text-amber-100 mt-3 text-4xl font-bold"
+                      >
                         {dailyStats.pendingMembers.length}
                       </Heading>
                     </CardContent>
@@ -314,7 +411,9 @@ export default function DashboardPage({ userId }) {
                   <h3 className="text-lg font-bold text-emerald-300 mb-4 flex items-center">
                     <span className="bg-emerald-500/30 w-2 h-8 rounded-full mr-3"></span>
                     <span className="text-xl">✅</span>
-                    <span className="ml-2">Paid ({dailyStats.paidMembers.length})</span>
+                    <span className="ml-2">
+                      Paid ({dailyStats.paidMembers.length})
+                    </span>
                   </h3>
                   <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
                     {dailyStats.paidMembers.length > 0 ? (
@@ -323,7 +422,9 @@ export default function DashboardPage({ userId }) {
                           key={idx}
                           className="flex justify-between items-center bg-emerald-900/20 border border-emerald-700/20 p-3 rounded-lg hover:bg-emerald-900/30 transition-colors"
                         >
-                          <span className="font-medium text-slate-200">{member.memberName}</span>
+                          <span className="font-medium text-slate-200">
+                            {member.memberName}
+                          </span>
                           <span className="text-emerald-400 font-bold">
                             ₹{member.amount.toLocaleString()}
                           </span>
@@ -341,7 +442,9 @@ export default function DashboardPage({ userId }) {
                   <h3 className="text-lg font-bold text-amber-300 mb-4 flex items-center">
                     <span className="bg-amber-500/30 w-2 h-8 rounded-full mr-3"></span>
                     <span className="text-xl">⏳</span>
-                    <span className="ml-2">Didn't Pay ({dailyStats.pendingMembers.length})</span>
+                    <span className="ml-2">
+                      Didn't Pay ({dailyStats.pendingMembers.length})
+                    </span>
                   </h3>
                   <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
                     {dailyStats.pendingMembers.length > 0 ? (
@@ -377,9 +480,14 @@ export default function DashboardPage({ userId }) {
                           className="flex justify-between items-center bg-slate-700/30 border border-slate-600/30 p-4 rounded-lg hover:bg-slate-700/50 transition-all hover:scale-[1.01]"
                         >
                           <div>
-                            <p className="font-semibold text-slate-200">{trans.memberName}</p>
+                            <p className="font-semibold text-slate-200">
+                              {trans.memberName}
+                            </p>
                             <p className="text-xs text-slate-400 mt-1">
-                              🕐 {new Date(trans.timestamp.toDate()).toLocaleTimeString()}
+                              🕐{" "}
+                              {new Date(
+                                trans.timestamp.toDate()
+                              ).toLocaleTimeString()}
                             </p>
                           </div>
                           <p className="font-bold text-blue-400 text-lg">
@@ -474,21 +582,37 @@ export default function DashboardPage({ userId }) {
                         >
                           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                             <div className="flex-1">
-                              <p className="font-bold text-lg text-slate-200">{member.memberName}</p>
+                              <p className="font-bold text-lg text-slate-200">
+                                {member.memberName}
+                              </p>
                               <div className="mt-2">
-                                <p className="text-xs text-rose-300/80 mb-1 uppercase tracking-wide">Total Outstanding</p>
+                                <p className="text-xs text-rose-300/80 mb-1 uppercase tracking-wide">
+                                  Total Outstanding
+                                </p>
                                 <p className="font-bold text-2xl text-rose-400">
                                   ₹{member.due.toLocaleString()}
                                 </p>
                               </div>
                             </div>
                             <button
-                              onClick={() => handleClearThisMonthOutstanding(member)}
+                              onClick={() =>
+                                handleClearThisMonthOutstanding(member)
+                              }
                               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-2 whitespace-nowrap"
                               title="Clear outstanding balance for this month"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M5 13l4 4L19 7"
+                                />
                               </svg>
                               Clear This Month
                             </button>
@@ -505,11 +629,13 @@ export default function DashboardPage({ userId }) {
               </div>
             </>
           ) : (
-              <EmptyState title="No Data" description="Could not load monthly statistics."/>
+            <EmptyState
+              title="No Data"
+              description="Could not load monthly statistics."
+            />
           )}
         </CardContent>
       </Card>
     </FadeIn>
   );
 }
-
