@@ -86,6 +86,8 @@ export default function LedgerPage({ userId }) {
       const transData = {};
       snapshot.docs.forEach((doc) => {
         const data = doc.data();
+        // Skip outstanding_cleared transactions from display
+        if (data.type === 'outstanding_cleared') return;
         if (!transData[data.memberId]) transData[data.memberId] = [];
         transData[data.memberId].push({ id: doc.id, ...data });
       });
