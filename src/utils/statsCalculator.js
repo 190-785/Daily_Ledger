@@ -261,6 +261,9 @@ export async function updateMonthlyStats(userId, monthYear) {
     );
     const previousMonthsMap = new Map(); // <memberId, Map<monthKey, paidAmount>>
     previousTransactions.forEach((t) => {
+      // Skip outstanding_cleared transactions - they don't represent actual payments
+      if (t.type === 'outstanding_cleared') return;
+      
       if (!previousMonthsMap.has(t.memberId)) {
         previousMonthsMap.set(t.memberId, new Map());
       }
@@ -344,12 +347,31 @@ export async function updateMonthlyStats(userId, monthYear) {
 
       if (calculationStartDate && calculationStartDate < viewMonthStart) {
         let checkDate = calculationStartDate;
+        let lastClearedMonth = null;
+
+        // First, find the most recent month where outstanding was cleared
+        const memberPreviousTransactions = previousTransactions.filter(t => t.memberId === currentMember.id);
+        memberPreviousTransactions.forEach(t => {
+          if (t.type === 'outstanding_cleared') {
+            const monthKey = t.date.slice(0, 7);
+            if (!lastClearedMonth || monthKey > lastClearedMonth) {
+              lastClearedMonth = monthKey;
+            }
+          }
+        });
 
         // Loop from their start month up to (but not including) the month we are viewing
         while (checkDate < viewMonthStart) {
           const monthKey = checkDate.toISOString().slice(0, 7);
+          
+          // If this month is before or equal to the last cleared month, skip accumulating balance
+          if (lastClearedMonth && monthKey <= lastClearedMonth) {
+            // Outstanding was cleared in this month or before, so don't add to previous balance
+            checkDate.setMonth(checkDate.getMonth() + 1);
+            continue;
+          }
+          
           const paidThisMonth = memberMonths.get(monthKey) || 0;
-
           previousBalanceDue += effectiveMonthlyTarget - paidThisMonth;
           checkDate.setMonth(checkDate.getMonth() + 1);
         }
