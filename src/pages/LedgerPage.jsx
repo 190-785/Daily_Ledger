@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import MemberListControls from "../components/MemberListControls";
 import { exportMemberMonthlyToExcel } from "../utils/excelExport";
+import { AlertModal, ConfirmModal } from "../components";
 
 export default function LedgerPage({ userId }) {
   const [members, setMembers] = useState([]);
@@ -31,6 +32,8 @@ export default function LedgerPage({ userId }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
 
   useEffect(() => {
     const membersQuery = query(collection(db, "users", userId, "members"));
@@ -94,7 +97,12 @@ export default function LedgerPage({ userId }) {
   const handleAddTransaction = async (member, amount) => {
     // Prevent adding 0 or negative amounts
     if (!amount || Number(amount) <= 0) {
-      alert("Please enter a valid amount greater than zero.");
+      setAlertModal({
+        isOpen: true,
+        title: 'Invalid Amount',
+        message: 'Please enter a valid amount greater than zero.',
+        type: 'warning'
+      });
       return;
     }
     await addDoc(collection(db, "users", userId, "transactions"), {
@@ -133,10 +141,16 @@ export default function LedgerPage({ userId }) {
   };
 
   // This is now a real delete function.
-  const handleDeleteTransaction = async (transactionId) => {
-    if (window.confirm("Are you sure you want to delete this entry?")) {
-      await deleteDoc(doc(db, "users", userId, "transactions", transactionId));
-    }
+  const handleDeleteTransaction = (transactionId) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Transaction',
+      message: 'Are you sure you want to delete this entry?',
+      onConfirm: async () => {
+        await deleteDoc(doc(db, "users", userId, "transactions", transactionId));
+        setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null });
+      }
+    });
   };
 
   // Drag and drop handlers
@@ -224,7 +238,12 @@ export default function LedgerPage({ userId }) {
       });
     } catch (error) {
       console.error('Error exporting member data:', error);
-      alert('Failed to export data. Please try again.');
+      setAlertModal({
+        isOpen: true,
+        title: 'Export Failed',
+        message: 'Failed to export data. Please try again.',
+        type: 'error'
+      });
     }
   };
 
@@ -441,6 +460,24 @@ export default function LedgerPage({ userId }) {
           })}
         </div>
       )}
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '', type: 'info' })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+      />
     </div>
   );
 }

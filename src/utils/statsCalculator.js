@@ -357,7 +357,12 @@ export async function updateMonthlyStats(userId, monthYear) {
       // --- END: REVISED PREVIOUS BALANCE CALCULATION ---
 
       const thisMonthTransactions = transactionsThisMonth.filter((t) => t.memberId === member.id);
-      const paidThisMonth = thisMonthTransactions.reduce((sum, t) => sum + t.amount, 0);
+      
+      // Exclude 'outstanding_cleared' transactions from paid amount
+      // Those transactions just mark that previous balance was cleared, not actual payments
+      const paidThisMonth = thisMonthTransactions
+        .filter((t) => t.type !== 'outstanding_cleared')
+        .reduce((sum, t) => sum + t.amount, 0);
 
       // Debug: Log transactions for ariana
       if (currentMember.name === "ariana") {

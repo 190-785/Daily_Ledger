@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../firebase";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { exportMonthlyToExcel } from "../utils/excelExport";
+import { AlertModal } from "../components";
 
 // Helper function to calculate monthly target from transaction patterns
 function calculateMonthlyTargetFromTransactions(memberTransactions) {
@@ -42,6 +43,7 @@ export default function MonthlyViewPage({ userId }) {
   const [monthlyData, setMonthlyData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [availableMembers, setAvailableMembers] = useState([]); // Includes virtual members
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   useEffect(() => {
     const membersQuery = query(collection(db, "users", userId, "members"));
@@ -158,7 +160,12 @@ export default function MonthlyViewPage({ userId }) {
 
   const handleExportToExcel = () => {
     if (!selectedMonth) {
-      alert('Please select a month to export');
+      setAlertModal({
+        isOpen: true,
+        title: 'Month Not Selected',
+        message: 'Please select a month to export',
+        type: 'warning'
+      });
       return;
     }
 
@@ -317,6 +324,15 @@ export default function MonthlyViewPage({ userId }) {
           </div>
         )
       )}
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '', type: 'info' })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
     </div>
   );
 }

@@ -316,17 +316,14 @@ Note: Any additional payments made after clearing will be credited to the member
         return;
       }
 
-      const paidThisMonth = monthTransactions.reduce(
-        (sum, t) => sum + t.amount,
-        0
-      );
-      const outstandingThisMonth = member.monthlyTarget - paidThisMonth;
+      // Get the total outstanding from the stats (includes previous balance)
+      const totalOutstanding = memberData.outstanding;
 
-      if (outstandingThisMonth <= 0) {
+      if (totalOutstanding <= 0) {
         setAlertModal({
           isOpen: true,
           title: 'No Outstanding Balance',
-          message: 'Member has paid in full or has a credit for this month.',
+          message: 'Member has no outstanding balance.',
           type: 'success'
         });
         return;
@@ -339,10 +336,10 @@ Note: Any additional payments made after clearing will be credited to the member
       await addDoc(collection(db, "users", userId, "transactions"), {
         memberId: member.id,
         memberName: member.name,
-        amount: outstandingThisMonth,
+        amount: totalOutstanding,
         date: clearanceDate,
         timestamp: Timestamp.fromDate(new Date(clearanceDate + "T12:00:00Z")),
-        description: `⚡ Outstanding cleared for ${selectedMonth}`,
+        description: `⚡ Outstanding cleared (₹${totalOutstanding.toLocaleString()})`,
         type: "outstanding_cleared",
       });
 
@@ -356,7 +353,7 @@ Note: Any additional payments made after clearing will be credited to the member
       setAlertModal({
         isOpen: true,
         title: 'Success',
-        message: `Successfully cleared outstanding balance of ₹${outstandingThisMonth.toLocaleString()} for ${member.memberName} in ${selectedMonth}`,
+        message: `Successfully cleared outstanding balance of ₹${totalOutstanding.toLocaleString()} for ${member.name} in ${selectedMonth}`,
         type: 'success'
       });
     } catch (error) {
