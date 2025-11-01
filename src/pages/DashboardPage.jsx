@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   collection,
   query,
@@ -44,13 +44,13 @@ export default function DashboardPage({ userId }) {
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState([]);
   const [allTransactions, setAllTransactions] = useState([]);
-  const initialDailyStats = {
+  const initialDailyStats = useMemo(() => ({
     totalCollected: 0,
     totalMembers: 0,
     paidMembers: [],
     pendingMembers: [],
     recentTransactions: [],
-  };
+  }), []);
   
   // Modal states
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
@@ -144,7 +144,7 @@ export default function DashboardPage({ userId }) {
 
       return () => unsubscribe();
     }
-  }, [viewTab, selectedDate, selectedMonth, userId]);
+  }, [viewTab, selectedDate, selectedMonth, userId, initialDailyStats]);
 
   // This useEffect fetches NON-CACHED UI data (recent transactions for today)
   // It runs separately from the stats cache.
@@ -203,12 +203,22 @@ export default function DashboardPage({ userId }) {
   }, [allTransactions, selectedDate, userId]); // Re-run when transactions or date change
   const handleExportToExcel = () => {
     if (viewTab !== "monthly") {
-      alert("Please switch to Monthly View to export data");
+      setAlertModal({
+        isOpen: true,
+        title: 'Monthly View Required',
+        message: 'Please switch to Monthly View to export data',
+        type: 'warning'
+      });
       return;
     }
 
     if (!selectedMonth) {
-      alert("Please select a month to export");
+      setAlertModal({
+        isOpen: true,
+        title: 'Month Not Selected',
+        message: 'Please select a month to export',
+        type: 'warning'
+      });
       return;
     }
 
@@ -380,14 +390,24 @@ Note: Any additional payments made after clearing will be credited to the member
                   <div className="mb-4">
                     <button
                       onClick={async () => {
-                        try {
-                          setMonthlyStats(null);
-                          await updateMonthlyStats(userId, selectedMonth);
-                          alert("Monthly stats recalculated successfully!");
-                        } catch (error) {
-                          console.error("Error recalculating monthly stats:", error);
-                          alert("Failed to recalculate monthly stats");
-                        }
+                      try {
+                        setMonthlyStats(null);
+                        await updateMonthlyStats(userId, selectedMonth);
+                        setAlertModal({
+                          isOpen: true,
+                          title: 'Success',
+                          message: 'Monthly stats recalculated successfully!',
+                          type: 'success'
+                        });
+                      } catch (error) {
+                        console.error("Error recalculating monthly stats:", error);
+                        setAlertModal({
+                          isOpen: true,
+                          title: 'Error',
+                          message: 'Failed to recalculate monthly stats. Please try again.',
+                          type: 'error'
+                        });
+                      }
                       }}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     >
@@ -782,6 +802,24 @@ Note: Any additional payments made after clearing will be credited to the member
           )}
         </CardContent>
       </Card>
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '', type: 'info' })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+      />
     </FadeIn>
   );
 }
