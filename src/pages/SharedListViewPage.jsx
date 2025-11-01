@@ -146,6 +146,8 @@ const transactionsSnap = await getDocs(transactionsQuery);
 const transactionsByMember = {};
 transactionsSnap.docs.forEach(doc => {
   const t = doc.data();
+  // Skip outstanding_cleared transactions from display
+  if (t.type === 'outstanding_cleared') return;
   if (!transactionsByMember[t.memberId]) {
     transactionsByMember[t.memberId] = [];
   }

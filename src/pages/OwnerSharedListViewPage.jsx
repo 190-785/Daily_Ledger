@@ -93,6 +93,8 @@ useEffect(() => {
       const transactionsByMember = {};
       transactionsSnap.forEach((doc) => {
         const transData = { id: doc.id, ...doc.data() };
+        // Skip outstanding_cleared transactions from display
+        if (transData.type === 'outstanding_cleared') return;
         if (!transactionsByMember[transData.memberId]) {
           transactionsByMember[transData.memberId] = [];
         }
