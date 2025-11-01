@@ -400,16 +400,21 @@ export async function updateMonthlyStats(userId, monthYear) {
       const finalBalance =
         effectiveMonthlyTarget + previousBalanceDue - paidThisMonth;
 
+      // Check if outstanding was cleared this month
+      const hasOutstandingCleared = thisMonthTransactions.some(t => t.type === 'outstanding_cleared');
+
       // Debug logging for all members with outstanding
       if (finalBalance > 0 || currentMember.name === "ariana") {
         console.log(`[${monthYear}] ${currentMember.name}:
   Monthly Target: ₹${effectiveMonthlyTarget.toLocaleString()}
   Previous Balance: ₹${previousBalanceDue.toLocaleString()}
   Paid This Month: ₹${paidThisMonth.toLocaleString()}
-  Final Outstanding: ₹${finalBalance.toLocaleString()}`);
+  Final Outstanding: ₹${finalBalance.toLocaleString()}
+  Outstanding Cleared: ${hasOutstandingCleared}`);
       }
 
-      if (finalBalance > 0) {
+      // Only add to membersWithDues if they have outstanding AND it hasn't been cleared this month
+      if (finalBalance > 0 && !hasOutstandingCleared) {
         totalOutstanding += finalBalance;
         membersWithDues.push({
           memberId: currentMember.id,
