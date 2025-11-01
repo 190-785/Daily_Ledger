@@ -55,23 +55,48 @@ export async function updateDailyStats(userId, date) {
       const paidToday = todayTransactions
         .filter(
           (t) => t.memberId === member.id && t.type !== "outstanding_cleared"
-        ) // <-- UPDATE THIS LINE
+        )
         .reduce((sum, t) => sum + t.amount, 0);
 
       // Calculate total outstanding (all time)
-      const totalPaidAllTime = allTransactions
-        .filter((t) => t.memberId === member.id)
-        .reduce((sum, t) => sum + t.amount, 0);
+      const memberTransactions = allTransactions.filter((t) => t.memberId === member.id);
+      const totalPaidAllTime = memberTransactions.reduce((sum, t) => sum + t.amount, 0);
 
-      // Get member creation date
+      // Get member creation date and earliest transaction date
       const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
       const currentDate = new Date(date);
 
-      // Calculate expected amount (monthlyTarget * number of months since creation)
+      // Find earliest transaction date for this member
+      let earliestTransactionDate = null;
+      if (memberTransactions.length > 0) {
+        const sortedTransactions = memberTransactions
+          .map(t => new Date(t.date + "T00:00:00Z"))
+          .sort((a, b) => a - b);
+        earliestTransactionDate = sortedTransactions[0];
+      }
+
+      // Use the EARLIER of member creation date or first transaction date
+      let startDate;
+      if (earliestTransactionDate && memberCreatedDate) {
+        // Both exist, use whichever is earlier
+        startDate = earliestTransactionDate < memberCreatedDate 
+          ? earliestTransactionDate 
+          : memberCreatedDate;
+      } else if (earliestTransactionDate) {
+        // Only transaction date exists, use it (member might have been created later)
+        startDate = earliestTransactionDate;
+      } else if (memberCreatedDate) {
+        // Only member creation date exists
+        startDate = memberCreatedDate;
+      } else {
+        startDate = new Date(0); // Fallback
+      }
+
+      // Calculate expected amount (monthlyTarget * number of months since start date)
       let totalExpected = 0;
       let checkDate = new Date(
-        memberCreatedDate.getFullYear(),
-        memberCreatedDate.getMonth(),
+        startDate.getFullYear(),
+        startDate.getMonth(),
         1
       );
       const endDate = new Date(
@@ -80,7 +105,7 @@ export async function updateDailyStats(userId, date) {
         1
       );
 
-      // Count each month from member creation to current month (inclusive)
+      // Count each month from start date to current month (inclusive)
       while (checkDate <= endDate) {
         totalExpected += member.monthlyTarget || 0;
         checkDate.setMonth(checkDate.getMonth() + 1);
@@ -91,7 +116,8 @@ export async function updateDailyStats(userId, date) {
       // Debug log for troubleshooting
       if (outstandingBalance !== 0) {
         console.log(
-          `Member: ${member.name}, Expected: ${totalExpected}, Paid: ${totalPaidAllTime}, Outstanding: ${outstandingBalance}`
+          `Member: ${member.name}, Expected: ${totalExpected}, Paid: ${totalPaidAllTime}, Outstanding: ${outstandingBalance}`,
+          earliestTransactionDate ? `(Start: ${startDate.toISOString().slice(0, 7)})` : ''
         );
       }
 
@@ -287,15 +313,21 @@ export async function updateMonthlyStats(userId, monthYear) {
 
       let calculationStartDate = null;
 
-      if (memberCreatedDate) {
-        // Member exists, use their creation date
+      // Use the EARLIER of member creation date or first transaction date
+      if (memberCreatedDate && earliestTransactionDate) {
+        // Both exist, use whichever is earlier
+        calculationStartDate = memberCreatedDate < earliestTransactionDate
+          ? new Date(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1)
+          : new Date(earliestTransactionDate.getFullYear(), earliestTransactionDate.getMonth(), 1);
+      } else if (memberCreatedDate) {
+        // Only member creation date exists
         calculationStartDate = new Date(
           memberCreatedDate.getFullYear(),
           memberCreatedDate.getMonth(),
           1
         );
       } else if (earliestTransactionDate) {
-        // Virtual member, use their first transaction's month
+        // Only transaction date exists (virtual member)
         calculationStartDate = new Date(
           earliestTransactionDate.getFullYear(),
           earliestTransactionDate.getMonth(),
@@ -324,16 +356,25 @@ export async function updateMonthlyStats(userId, monthYear) {
       }
       // --- END: REVISED PREVIOUS BALANCE CALCULATION ---
 
-      const paidThisMonth = transactionsThisMonth
-        .filter((t) => t.memberId === member.id)
-        .reduce((sum, t) => sum + t.amount, 0);
+      const thisMonthTransactions = transactionsThisMonth.filter((t) => t.memberId === member.id);
+      const paidThisMonth = thisMonthTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+      // Debug: Log transactions for ariana
+      if (currentMember.name === "ariana") {
+        console.log(`[${monthYear}] ariana transactions this month:`, thisMonthTransactions.map(t => ({
+          date: t.date,
+          amount: t.amount,
+          type: t.type,
+          description: t.description
+        })));
+      }
 
       // This is the key: Target for *this* month + all previous balance - paid *this* month
       const finalBalance =
         effectiveMonthlyTarget + previousBalanceDue - paidThisMonth;
 
       // Debug logging for all members with outstanding
-      if (finalBalance > 0) {
+      if (finalBalance > 0 || currentMember.name === "ariana") {
         console.log(`[${monthYear}] ${currentMember.name}:
   Monthly Target: ₹${effectiveMonthlyTarget.toLocaleString()}
   Previous Balance: ₹${previousBalanceDue.toLocaleString()}

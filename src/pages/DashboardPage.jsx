@@ -23,6 +23,7 @@ import { Heading, Text } from "/src/components/Typography.jsx";
 import Button from "/src/components/Button.jsx";
 import LoadingSpinner, { EmptyState } from "/src/components/LoadingSpinner.jsx";
 import { FadeIn, Stagger } from "/src/components/Animations.jsx";
+import { AlertModal, ConfirmModal } from "/src/components/Modal.jsx";
 import { exportMonthlyToExcel } from "/src/utils/excelExport.js";
 
 const getMonthYear = (date = new Date()) => date.toISOString().slice(0, 7);
@@ -50,6 +51,10 @@ export default function DashboardPage({ userId }) {
     pendingMembers: [],
     recentTransactions: [],
   };
+  
+  // Modal states
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
 
   // Load members and transactions
   useEffect(() => {
@@ -107,11 +112,25 @@ export default function DashboardPage({ userId }) {
 
       const unsubscribe = onSnapshot(monthlyStatsRef, (docSnap) => {
         if (docSnap.exists()) {
-          // Also apply the merge logic here for safety
-          setMonthlyStats(prevStats => ({
-            ...(prevStats || {}), // Keep previous state if it exists
-            ...docSnap.data()     // Overwrite with new data
-          }));
+          const data = docSnap.data();
+          // Check if stats are stale (older than 10 seconds)
+          const updatedAt = data.updatedAt?.toDate();
+          const now = new Date();
+          const isStale = !updatedAt || (now - updatedAt) > 10000; // 10 seconds
+          
+          if (isStale) {
+            // Stats exist but might be stale, recalculate in background
+            setMonthlyStats(data); // Show existing data immediately
+            updateMonthlyStats(userId, selectedMonth).catch(error => {
+              console.error("Error refreshing monthly stats:", error);
+            });
+          } else {
+            // Stats are fresh, just display them
+            setMonthlyStats(prevStats => ({
+              ...(prevStats || {}), // Keep previous state if it exists
+              ...data     // Overwrite with new data
+            }));
+          }
         } else {
           // If no stats doc exists, trigger an update
           setMonthlyStats(null); // Set to null while it calculates
@@ -162,11 +181,24 @@ export default function DashboardPage({ userId }) {
       updateDailyStats(userId, selectedDate).catch((error) => {
         console.error("Failed to auto-update daily stats:", error);
       });
-      updateMonthlyStats(userId, getMonthYear(new Date(selectedDate))).catch(
-        (error) => {
-          console.error("Failed to auto-update monthly stats:", error);
-        }
-      );
+      
+      // Recalculate monthly stats for current month and future months
+      // Because a transaction in previous months affects future outstanding
+      const currentMonth = getMonthYear(new Date(selectedDate));
+      const today = new Date();
+      const todayMonth = getMonthYear(today);
+      
+      // Always recalculate the current month
+      updateMonthlyStats(userId, currentMonth).catch((error) => {
+        console.error("Failed to auto-update monthly stats:", error);
+      });
+      
+      // If viewing a past month, also recalculate current month
+      if (currentMonth !== todayMonth) {
+        updateMonthlyStats(userId, todayMonth).catch((error) => {
+          console.error("Failed to auto-update current month stats:", error);
+        });
+      }
     }
   }, [allTransactions, selectedDate, userId]); // Re-run when transactions or date change
   const handleExportToExcel = () => {
@@ -209,28 +241,35 @@ export default function DashboardPage({ userId }) {
     // Calculate current month outstanding for confirmation
     const thisMonthOnly = (memberData.monthlyTarget || 0) - (memberData.paidThisMonth || 0);
     
-    const confirmMessage = `Clear outstanding for ${memberData.memberName} in ${selectedMonth}?
-
-Current Status:
+    const confirmMessage = `Current Status:
 • This Month Target: ₹${(memberData.monthlyTarget || 0).toLocaleString()}
 • Paid This Month: ₹${(memberData.paidThisMonth || 0).toLocaleString()}
 • Outstanding This Month: ₹${thisMonthOnly.toLocaleString()}
 
 This will add a clearing transaction of ₹${thisMonthOnly.toLocaleString()} to mark this month as paid.
 
-Note: Any additional payments made after clearing will be credited to the member's account.
+Note: Any additional payments made after clearing will be credited to the member's account.`;
 
-Continue?`;
+    setConfirmModal({
+      isOpen: true,
+      title: `Clear Outstanding for ${memberData.memberName}?`,
+      message: confirmMessage,
+      onConfirm: () => performClearOutstanding(memberData)
+    });
+  };
 
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
+  const performClearOutstanding = async (memberData) => {
 
     try {
       // Find the member
       const member = members.find((m) => m.name === memberData.memberName);
       if (!member) {
-        alert("Member not found.");
+        setAlertModal({
+          isOpen: true,
+          title: 'Error',
+          message: 'Member not found.',
+          type: 'error'
+        });
         return;
       }
 
@@ -258,7 +297,12 @@ Continue?`;
       // Check if already cleared this month
       const alreadyCleared = monthTransactions.some(t => t.type === "outstanding_cleared");
       if (alreadyCleared) {
-        alert("⚠️ Outstanding for this month has already been cleared. If member paid additional amount, it will be credited to their account.");
+        setAlertModal({
+          isOpen: true,
+          title: 'Already Cleared',
+          message: 'Outstanding for this month has already been cleared. If member paid additional amount, it will be credited to their account.',
+          type: 'warning'
+        });
         return;
       }
 
@@ -269,7 +313,12 @@ Continue?`;
       const outstandingThisMonth = member.monthlyTarget - paidThisMonth;
 
       if (outstandingThisMonth <= 0) {
-        alert("✅ No outstanding balance to clear for this month. Member has paid in full or has a credit.");
+        setAlertModal({
+          isOpen: true,
+          title: 'No Outstanding Balance',
+          message: 'Member has paid in full or has a credit for this month.',
+          type: 'success'
+        });
         return;
       }
 
@@ -294,10 +343,20 @@ Continue?`;
       await updateMonthlyStats(userId, selectedMonth);
       
       // Show success message
-      alert(`✅ Successfully cleared outstanding balance of ₹${outstandingThisMonth.toLocaleString()} for ${member.memberName} in ${selectedMonth}`);
+      setAlertModal({
+        isOpen: true,
+        title: 'Success',
+        message: `Successfully cleared outstanding balance of ₹${outstandingThisMonth.toLocaleString()} for ${member.memberName} in ${selectedMonth}`,
+        type: 'success'
+      });
     } catch (error) {
       console.error("Error clearing outstanding balance:", error);
-      alert("❌ Failed to clear outstanding balance. Please try again.");
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'Failed to clear outstanding balance. Please try again.',
+        type: 'error'
+      });
     }
   };
 
@@ -659,13 +718,13 @@ Continue?`;
                                     ₹{(member.monthlyTarget || 0).toLocaleString()}
                                   </p>
                                 </div>
-                                {member.paidThisMonth > 0 && (
+                                {member.paidThisMonth !== 0 && (
                                   <div className="flex justify-between items-center">
-                                    <p className="text-xs text-emerald-400">
+                                    <p className={`text-xs ${member.paidThisMonth > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                       Paid This Month:
                                     </p>
-                                    <p className="text-sm text-emerald-300 font-semibold">
-                                      -₹{member.paidThisMonth.toLocaleString()}
+                                    <p className={`text-sm font-semibold ${member.paidThisMonth > 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                                      {member.paidThisMonth > 0 ? '-' : '+'}₹{Math.abs(member.paidThisMonth).toLocaleString()}
                                     </p>
                                   </div>
                                 )}

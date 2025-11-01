@@ -71,6 +71,7 @@ export {
 export { default as CreateListModal } from './CreateListModal';
 export { default as ShareListModal } from './ShareListModal';
 export { default as ManageAccessModal } from './ManageAccessModal';
+export { AlertModal, ConfirmModal } from './Modal';
 
 // Feature Components
 export { default as MemberSelector } from './MemberSelector';
