@@ -309,10 +309,31 @@ export async function updateMonthlyStats(userId, monthYear) {
 
       const memberMonths = previousMonthsMap.get(currentMember.id) || new Map();
 
+      // Debug for specific members
+      if (currentMember.name === "Rin") {
+        console.log(`[${monthYear}] ${currentMember.name} - Member months map (previous months):`, 
+          Array.from(memberMonths.entries()).map(([month, amount]) => `${month}: ₹${amount}`)
+        );
+        console.log(`[${monthYear}] ${currentMember.name} - All previous transactions:`, 
+          previousTransactions.filter(t => t.memberId === currentMember.id).map(t => ({
+            date: t.date,
+            amount: t.amount,
+            type: t.type,
+            description: t.description
+          }))
+        );
+      }
+
       // Determine the first month to start charging them
       const earliestTransactionDate = earliestTransactionMap.get(
         currentMember.id
       );
+
+      // Debug for specific members
+      if (currentMember.name === "Rin") {
+        console.log(`[${monthYear}] ${currentMember.name} - Earliest transaction date:`, earliestTransactionDate);
+        console.log(`[${monthYear}] ${currentMember.name} - Member created date:`, memberCreatedDate);
+      }
 
       let calculationStartDate = null;
 
@@ -360,18 +381,37 @@ export async function updateMonthlyStats(userId, monthYear) {
           }
         });
 
-        // Loop from their start month up to (but not including) the month we are viewing
+        // Debug for specific members
+        if (currentMember.name === "Rin" || currentMember.name === "fvu") {
+          console.log(`[${monthYear}] ${currentMember.name} - Last Cleared Month:`, lastClearedMonth);
+          console.log(`[${monthYear}] ${currentMember.name} - Previous cleared transactions:`, 
+            memberPreviousTransactions.filter(t => t.type === 'outstanding_cleared').map(t => ({
+              date: t.date,
+              amount: t.amount
+            }))
+          );
+        }
+
+        // If there was a cleared month, start accumulating from the month AFTER it
+        if (lastClearedMonth) {
+          const clearedDate = new Date(lastClearedMonth + '-01T00:00:00Z');
+          clearedDate.setMonth(clearedDate.getMonth() + 1);
+          // Only start from cleared month + 1 if it's later than the original start
+          if (clearedDate > checkDate) {
+            checkDate = clearedDate;
+          }
+        }
+
+        // Loop from the start date up to (but not including) the month we are viewing
         while (checkDate < viewMonthStart) {
           const monthKey = checkDate.toISOString().slice(0, 7);
+          const paidThisMonth = memberMonths.get(monthKey) || 0;
           
-          // If this month is before or equal to the last cleared month, skip accumulating balance
-          if (lastClearedMonth && monthKey <= lastClearedMonth) {
-            // Outstanding was cleared in this month or before, so don't add to previous balance
-            checkDate.setMonth(checkDate.getMonth() + 1);
-            continue;
+          // Debug for specific members
+          if (currentMember.name === "Rin" || currentMember.name === "fvu") {
+            console.log(`[${monthYear}] ${currentMember.name} - Accumulating ${monthKey}: target=${effectiveMonthlyTarget}, paid=${paidThisMonth}, adding=${effectiveMonthlyTarget - paidThisMonth}`);
           }
           
-          const paidThisMonth = memberMonths.get(monthKey) || 0;
           previousBalanceDue += effectiveMonthlyTarget - paidThisMonth;
           checkDate.setMonth(checkDate.getMonth() + 1);
         }
@@ -385,6 +425,14 @@ export async function updateMonthlyStats(userId, monthYear) {
       const paidThisMonth = thisMonthTransactions
         .filter((t) => t.type !== 'outstanding_cleared')
         .reduce((sum, t) => sum + t.amount, 0);
+
+      // Debug for specific members
+      if (currentMember.name === "Rin") {
+        console.log(`[${monthYear}] ${currentMember.name} - This month transactions:`, 
+          thisMonthTransactions.map(t => ({ date: t.date, amount: t.amount, type: t.type }))
+        );
+        console.log(`[${monthYear}] ${currentMember.name} - Paid this month: ₹${paidThisMonth}`);
+      }
 
       // Debug: Log transactions for ariana
       if (currentMember.name === "ariana") {
