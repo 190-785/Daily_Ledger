@@ -206,7 +206,21 @@ export default function DashboardPage({ userId }) {
   };
 
   const handleClearThisMonthOutstanding = async (memberData) => {
-    const confirmMessage = `Are you sure you want to clear the outstanding balance for ${memberData.memberName} in ${selectedMonth}?\n\nThis will mark the outstanding as cleared without adding any payment.`;
+    // Calculate current month outstanding for confirmation
+    const thisMonthOnly = (memberData.monthlyTarget || 0) - (memberData.paidThisMonth || 0);
+    
+    const confirmMessage = `Clear outstanding for ${memberData.memberName} in ${selectedMonth}?
+
+Current Status:
+• This Month Target: ₹${(memberData.monthlyTarget || 0).toLocaleString()}
+• Paid This Month: ₹${(memberData.paidThisMonth || 0).toLocaleString()}
+• Outstanding This Month: ₹${thisMonthOnly.toLocaleString()}
+
+This will add a clearing transaction of ₹${thisMonthOnly.toLocaleString()} to mark this month as paid.
+
+Note: Any additional payments made after clearing will be credited to the member's account.
+
+Continue?`;
 
     if (!window.confirm(confirmMessage)) {
       return;
@@ -241,6 +255,13 @@ export default function DashboardPage({ userId }) {
       const snapshot = await getDocs(monthQuery);
       const monthTransactions = snapshot.docs.map((doc) => doc.data());
 
+      // Check if already cleared this month
+      const alreadyCleared = monthTransactions.some(t => t.type === "outstanding_cleared");
+      if (alreadyCleared) {
+        alert("⚠️ Outstanding for this month has already been cleared. If member paid additional amount, it will be credited to their account.");
+        return;
+      }
+
       const paidThisMonth = monthTransactions.reduce(
         (sum, t) => sum + t.amount,
         0
@@ -248,7 +269,7 @@ export default function DashboardPage({ userId }) {
       const outstandingThisMonth = member.monthlyTarget - paidThisMonth;
 
       if (outstandingThisMonth <= 0) {
-        alert("No outstanding balance to clear for this month.");
+        alert("✅ No outstanding balance to clear for this month. Member has paid in full or has a credit.");
         return;
       }
 
@@ -266,14 +287,17 @@ export default function DashboardPage({ userId }) {
         type: "outstanding_cleared",
       });
 
+      // Force refresh by setting monthlyStats to null first
+      setMonthlyStats(null);
+      
       // Recalculate stats
-// Recalculate stats by calling the imported function directly
       await updateMonthlyStats(userId, selectedMonth);
       
-      alert(`Successfully cleared outstanding balance of ₹${outstandingThisMonth.toLocaleString()} for ${memberData.memberName} in ${selectedMonth}`);
+      // Show success message
+      alert(`✅ Successfully cleared outstanding balance of ₹${outstandingThisMonth.toLocaleString()} for ${member.memberName} in ${selectedMonth}`);
     } catch (error) {
       console.error("Error clearing outstanding balance:", error);
-      alert("Failed to clear outstanding balance. Please try again.");
+      alert("❌ Failed to clear outstanding balance. Please try again.");
     }
   };
 
@@ -616,13 +640,45 @@ export default function DashboardPage({ userId }) {
                               <p className="font-bold text-lg text-slate-200">
                                 {member.memberName}
                               </p>
-                              <div className="mt-2">
-                                <p className="text-xs text-rose-300/80 mb-1 uppercase tracking-wide">
-                                  Total Outstanding
-                                </p>
-                                <p className="font-bold text-2xl text-rose-400">
-                                  ₹{member.due.toLocaleString()}
-                                </p>
+                              <div className="mt-2 space-y-1">
+                                {member.previousBalance > 0 && (
+                                  <div className="flex justify-between items-center">
+                                    <p className="text-xs text-orange-400">
+                                      Previous Balance:
+                                    </p>
+                                    <p className="text-sm text-orange-300 font-semibold">
+                                      ₹{member.previousBalance.toLocaleString()}
+                                    </p>
+                                  </div>
+                                )}
+                                <div className="flex justify-between items-center">
+                                  <p className="text-xs text-slate-400">
+                                    This Month Target:
+                                  </p>
+                                  <p className="text-sm text-slate-300 font-semibold">
+                                    ₹{(member.monthlyTarget || 0).toLocaleString()}
+                                  </p>
+                                </div>
+                                {member.paidThisMonth > 0 && (
+                                  <div className="flex justify-between items-center">
+                                    <p className="text-xs text-emerald-400">
+                                      Paid This Month:
+                                    </p>
+                                    <p className="text-sm text-emerald-300 font-semibold">
+                                      -₹{member.paidThisMonth.toLocaleString()}
+                                    </p>
+                                  </div>
+                                )}
+                                <div className="border-t border-slate-600 pt-1 mt-1">
+                                  <div className="flex justify-between items-center">
+                                    <p className="text-xs text-rose-300/80 uppercase tracking-wide">
+                                      Total Outstanding
+                                    </p>
+                                    <p className="font-bold text-2xl text-rose-400">
+                                      ₹{member.due.toLocaleString()}
+                                    </p>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                             <button

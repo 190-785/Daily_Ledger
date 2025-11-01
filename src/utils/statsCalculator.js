@@ -224,7 +224,6 @@ export async function updateMonthlyStats(userId, monthYear) {
     ];
 
     const totalCollected = transactionsThisMonth
-      .filter((t) => t.type !== "outstanding_cleared")
       .reduce((sum, t) => sum + t.amount, 0);
 
     let totalOutstanding = 0;
@@ -259,17 +258,12 @@ export async function updateMonthlyStats(userId, monthYear) {
     for (const member of allMembersToProcess) {
       // Use a mutable copy if virtual so we can update its target
       let currentMember = { ...member };
-      console.log(
-        `Processing member: ${currentMember.name} (${currentMember.id}), isVirtual: ${currentMember.isVirtual}, monthlyTarget: ${currentMember.monthlyTarget}`
-      );
 
       const memberCreatedDate = currentMember.createdOn?.toDate() || null;
-      const isHistoricalMember =
-        memberCreatedDate && memberCreatedDate > endDate;
 
       let effectiveMonthlyTarget = currentMember.monthlyTarget || 0;
 
-      // For virtual members, try to determine monthly target
+      // For virtual members, try to determine monthly target from transaction history
       if (currentMember.isVirtual) {
         const memberTransactions = allTransactions.filter(
           (t) => t.memberId === currentMember.id
@@ -325,47 +319,29 @@ export async function updateMonthlyStats(userId, monthYear) {
           const paidThisMonth = memberMonths.get(monthKey) || 0;
 
           previousBalanceDue += effectiveMonthlyTarget - paidThisMonth;
-
-          console.log(
-            `Adding balance for ${
-              currentMember.name
-            } for ${monthKey}: ${effectiveMonthlyTarget} - ${paidThisMonth} = ${
-              effectiveMonthlyTarget - paidThisMonth
-            }. New prevBalance: ${previousBalanceDue}`
-          );
-
           checkDate.setMonth(checkDate.getMonth() + 1);
         }
-      } else {
-        console.log(
-          `Skipping previous balance for ${currentMember.name}, no valid start date found before ${monthYear}.`
-        );
       }
-
-      console.log(
-        `Previous balance due for ${currentMember.name}: ${previousBalanceDue}`
-      );
       // --- END: REVISED PREVIOUS BALANCE CALCULATION ---
 
       const paidThisMonth = transactionsThisMonth
-        .filter(
-          (t) => t.memberId === member.id && t.type !== "outstanding_cleared"
-        ) // <-- UPDATE THIS LINE
+        .filter((t) => t.memberId === member.id)
         .reduce((sum, t) => sum + t.amount, 0);
-      console.log(
-        `Paid this month for ${currentMember.name}: ${paidThisMonth}`
-      );
 
       // This is the key: Target for *this* month + all previous balance - paid *this* month
       const finalBalance =
         effectiveMonthlyTarget + previousBalanceDue - paidThisMonth;
 
-      console.log(`Final balance for ${currentMember.name}: ${finalBalance}`);
+      // Debug logging for all members with outstanding
+      if (finalBalance > 0) {
+        console.log(`[${monthYear}] ${currentMember.name}:
+  Monthly Target: ₹${effectiveMonthlyTarget.toLocaleString()}
+  Previous Balance: ₹${previousBalanceDue.toLocaleString()}
+  Paid This Month: ₹${paidThisMonth.toLocaleString()}
+  Final Outstanding: ₹${finalBalance.toLocaleString()}`);
+      }
 
       if (finalBalance > 0) {
-        console.log(
-          `Adding ${currentMember.name} to membersWithDues with due: ${finalBalance}`
-        );
         totalOutstanding += finalBalance;
         membersWithDues.push({
           memberId: currentMember.id,
@@ -374,8 +350,8 @@ export async function updateMonthlyStats(userId, monthYear) {
           due: finalBalance,
           paidThisMonth,
           previousBalance: previousBalanceDue,
+          monthlyTarget: effectiveMonthlyTarget,
           isVirtual: currentMember.isVirtual || false,
-          isHistorical: isHistoricalMember,
         });
       }
     }
@@ -383,43 +359,32 @@ export async function updateMonthlyStats(userId, monthYear) {
     // Sort by rank instead of due amount
     membersWithDues.sort((a, b) => (a.rank || 0) - (b.rank || 0));
 
-    // --- START: REVISED TOTAL TARGET CALCULATION ---
+    // Calculate total target for this month (only members who should be charged this month)
     const totalTarget = allMembersToProcess.reduce((sum, m) => {
       const memberCreatedDate = m.createdOn?.toDate() || null;
-
-      // Determine if member should be included in this month's target
-      let includeInTarget = false;
+      
+      // Determine the first month this member should be charged
+      let shouldChargeThisMonth = false;
+      
       if (memberCreatedDate) {
-        // Real member: include if created before or during this month
-        const memberStartMonth = new Date(
-          memberCreatedDate.getFullYear(),
-          memberCreatedDate.getMonth(),
-          1
-        );
-        if (memberStartMonth <= endDate) {
-          // endDate is last day of viewed month
-          includeInTarget = true;
+        // Real member: include if created on or before the end of this month
+        if (memberCreatedDate <= endDate) {
+          shouldChargeThisMonth = true;
         }
-      } else {
-        // Virtual member: include if they had *any* transaction (ever)
-        // and we estimated a target for them.
-        if (m.isVirtual && (m.monthlyTarget || 0) > 0) {
-          // More precise: check if their first transaction was before/during this month
-          const firstTransDate = earliestTransactionMap.get(m.id);
-          if (firstTransDate && firstTransDate <= endDate) {
-            includeInTarget = true;
-          }
+      } else if (m.isVirtual) {
+        // Virtual member: include if they have transactions on or before this month
+        const firstTransDate = earliestTransactionMap.get(m.id);
+        if (firstTransDate && firstTransDate <= endDate) {
+          shouldChargeThisMonth = true;
         }
       }
 
-      if (includeInTarget) {
-        // We use m.monthlyTarget, which was updated for virtual members in the loop above
+      if (shouldChargeThisMonth) {
         return sum + (m.monthlyTarget || 0);
       }
-
+      
       return sum;
     }, 0);
-    // --- END: REVISED TOTAL TARGET CALCULATION ---
 
     const collectionRate =
       totalTarget > 0 ? Math.round((totalCollected / totalTarget) * 100) : 0;
