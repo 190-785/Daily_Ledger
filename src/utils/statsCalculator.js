@@ -249,7 +249,9 @@ export async function updateMonthlyStats(userId, monthYear) {
       ...Array.from(virtualMembers.values()),
     ];
 
+    // Exclude outstanding_cleared transactions from total collected
     const totalCollected = transactionsThisMonth
+      .filter((t) => t.type !== 'outstanding_cleared')
       .reduce((sum, t) => sum + t.amount, 0);
 
     let totalOutstanding = 0;
