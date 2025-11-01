@@ -317,9 +317,9 @@ Note: Any additional payments made after clearing will be credited to the member
       }
 
       // Get the total outstanding from the stats (includes previous balance)
-      const totalOutstanding = memberData.outstanding;
+      const totalOutstanding = memberData.due;
 
-      if (totalOutstanding <= 0) {
+      if (!totalOutstanding || totalOutstanding <= 0) {
         setAlertModal({
           isOpen: true,
           title: 'No Outstanding Balance',
