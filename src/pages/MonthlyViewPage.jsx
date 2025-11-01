@@ -56,7 +56,9 @@ export default function MonthlyViewPage({ userId }) {
 
     const transQuery = query(collection(db, "users", userId, "transactions"));
     const unsubscribeTrans = onSnapshot(transQuery, (snapshot) => {
-      const transactions = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const transactions = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((t) => t.type !== 'outstanding_cleared'); // Hide clearing transactions from display
       setAllTransactions(transactions);
       
       // Calculate available members (current + virtual members from transactions)
