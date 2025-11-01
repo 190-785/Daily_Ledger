@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   collection,
   query,
@@ -23,6 +23,7 @@ import { Heading, Text } from "/src/components/Typography.jsx";
 import Button from "/src/components/Button.jsx";
 import LoadingSpinner, { EmptyState } from "/src/components/LoadingSpinner.jsx";
 import { FadeIn, Stagger } from "/src/components/Animations.jsx";
+import { AlertModal, ConfirmModal } from "/src/components/Modal.jsx";
 import { exportMonthlyToExcel } from "/src/utils/excelExport.js";
 
 const getMonthYear = (date = new Date()) => date.toISOString().slice(0, 7);
@@ -43,13 +44,17 @@ export default function DashboardPage({ userId }) {
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState([]);
   const [allTransactions, setAllTransactions] = useState([]);
-  const initialDailyStats = {
+  const initialDailyStats = useMemo(() => ({
     totalCollected: 0,
     totalMembers: 0,
     paidMembers: [],
     pendingMembers: [],
     recentTransactions: [],
-  };
+  }), []);
+  
+  // Modal states
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
 
   // Load members and transactions
   useEffect(() => {
@@ -107,11 +112,25 @@ export default function DashboardPage({ userId }) {
 
       const unsubscribe = onSnapshot(monthlyStatsRef, (docSnap) => {
         if (docSnap.exists()) {
-          // Also apply the merge logic here for safety
-          setMonthlyStats(prevStats => ({
-            ...(prevStats || {}), // Keep previous state if it exists
-            ...docSnap.data()     // Overwrite with new data
-          }));
+          const data = docSnap.data();
+          // Check if stats are stale (older than 10 seconds)
+          const updatedAt = data.updatedAt?.toDate();
+          const now = new Date();
+          const isStale = !updatedAt || (now - updatedAt) > 10000; // 10 seconds
+          
+          if (isStale) {
+            // Stats exist but might be stale, recalculate in background
+            setMonthlyStats(data); // Show existing data immediately
+            updateMonthlyStats(userId, selectedMonth).catch(error => {
+              console.error("Error refreshing monthly stats:", error);
+            });
+          } else {
+            // Stats are fresh, just display them
+            setMonthlyStats(prevStats => ({
+              ...(prevStats || {}), // Keep previous state if it exists
+              ...data     // Overwrite with new data
+            }));
+          }
         } else {
           // If no stats doc exists, trigger an update
           setMonthlyStats(null); // Set to null while it calculates
@@ -125,7 +144,7 @@ export default function DashboardPage({ userId }) {
 
       return () => unsubscribe();
     }
-  }, [viewTab, selectedDate, selectedMonth, userId]);
+  }, [viewTab, selectedDate, selectedMonth, userId, initialDailyStats]);
 
   // This useEffect fetches NON-CACHED UI data (recent transactions for today)
   // It runs separately from the stats cache.
@@ -162,21 +181,44 @@ export default function DashboardPage({ userId }) {
       updateDailyStats(userId, selectedDate).catch((error) => {
         console.error("Failed to auto-update daily stats:", error);
       });
-      updateMonthlyStats(userId, getMonthYear(new Date(selectedDate))).catch(
-        (error) => {
-          console.error("Failed to auto-update monthly stats:", error);
-        }
-      );
+      
+      // Recalculate monthly stats for current month and future months
+      // Because a transaction in previous months affects future outstanding
+      const currentMonth = getMonthYear(new Date(selectedDate));
+      const today = new Date();
+      const todayMonth = getMonthYear(today);
+      
+      // Always recalculate the current month
+      updateMonthlyStats(userId, currentMonth).catch((error) => {
+        console.error("Failed to auto-update monthly stats:", error);
+      });
+      
+      // If viewing a past month, also recalculate current month
+      if (currentMonth !== todayMonth) {
+        updateMonthlyStats(userId, todayMonth).catch((error) => {
+          console.error("Failed to auto-update current month stats:", error);
+        });
+      }
     }
   }, [allTransactions, selectedDate, userId]); // Re-run when transactions or date change
   const handleExportToExcel = () => {
     if (viewTab !== "monthly") {
-      alert("Please switch to Monthly View to export data");
+      setAlertModal({
+        isOpen: true,
+        title: 'Monthly View Required',
+        message: 'Please switch to Monthly View to export data',
+        type: 'warning'
+      });
       return;
     }
 
     if (!selectedMonth) {
-      alert("Please select a month to export");
+      setAlertModal({
+        isOpen: true,
+        title: 'Month Not Selected',
+        message: 'Please select a month to export',
+        type: 'warning'
+      });
       return;
     }
 
@@ -206,17 +248,38 @@ export default function DashboardPage({ userId }) {
   };
 
   const handleClearThisMonthOutstanding = async (memberData) => {
-    const confirmMessage = `Are you sure you want to clear the outstanding balance for ${memberData.memberName} in ${selectedMonth}?\n\nThis will mark the outstanding as cleared without adding any payment.`;
+    // Calculate current month outstanding for confirmation
+    const thisMonthOnly = (memberData.monthlyTarget || 0) - (memberData.paidThisMonth || 0);
+    
+    const confirmMessage = `Current Status:
+• This Month Target: ₹${(memberData.monthlyTarget || 0).toLocaleString()}
+• Paid This Month: ₹${(memberData.paidThisMonth || 0).toLocaleString()}
+• Outstanding This Month: ₹${thisMonthOnly.toLocaleString()}
 
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
+This will add a clearing transaction of ₹${thisMonthOnly.toLocaleString()} to mark this month as paid.
+
+Note: Any additional payments made after clearing will be credited to the member's account.`;
+
+    setConfirmModal({
+      isOpen: true,
+      title: `Clear Outstanding for ${memberData.memberName}?`,
+      message: confirmMessage,
+      onConfirm: () => performClearOutstanding(memberData)
+    });
+  };
+
+  const performClearOutstanding = async (memberData) => {
 
     try {
       // Find the member
       const member = members.find((m) => m.name === memberData.memberName);
       if (!member) {
-        alert("Member not found.");
+        setAlertModal({
+          isOpen: true,
+          title: 'Error',
+          message: 'Member not found.',
+          type: 'error'
+        });
         return;
       }
 
@@ -241,14 +304,28 @@ export default function DashboardPage({ userId }) {
       const snapshot = await getDocs(monthQuery);
       const monthTransactions = snapshot.docs.map((doc) => doc.data());
 
-      const paidThisMonth = monthTransactions.reduce(
-        (sum, t) => sum + t.amount,
-        0
-      );
-      const outstandingThisMonth = member.monthlyTarget - paidThisMonth;
+      // Check if already cleared this month
+      const alreadyCleared = monthTransactions.some(t => t.type === "outstanding_cleared");
+      if (alreadyCleared) {
+        setAlertModal({
+          isOpen: true,
+          title: 'Already Cleared',
+          message: 'Outstanding for this month has already been cleared. If member paid additional amount, it will be credited to their account.',
+          type: 'warning'
+        });
+        return;
+      }
 
-      if (outstandingThisMonth <= 0) {
-        alert("No outstanding balance to clear for this month.");
+      // Get the total outstanding from the stats (includes previous balance)
+      const totalOutstanding = memberData.due;
+
+      if (!totalOutstanding || totalOutstanding <= 0) {
+        setAlertModal({
+          isOpen: true,
+          title: 'No Outstanding Balance',
+          message: 'Member has no outstanding balance.',
+          type: 'success'
+        });
         return;
       }
 
@@ -259,21 +336,34 @@ export default function DashboardPage({ userId }) {
       await addDoc(collection(db, "users", userId, "transactions"), {
         memberId: member.id,
         memberName: member.name,
-        amount: outstandingThisMonth,
+        amount: totalOutstanding,
         date: clearanceDate,
         timestamp: Timestamp.fromDate(new Date(clearanceDate + "T12:00:00Z")),
-        description: `⚡ Outstanding cleared for ${selectedMonth}`,
+        description: `⚡ Outstanding cleared (₹${totalOutstanding.toLocaleString()})`,
         type: "outstanding_cleared",
       });
 
+      // Force refresh by setting monthlyStats to null first
+      setMonthlyStats(null);
+      
       // Recalculate stats
-// Recalculate stats by calling the imported function directly
       await updateMonthlyStats(userId, selectedMonth);
       
-      alert(`Successfully cleared outstanding balance of ₹${outstandingThisMonth.toLocaleString()} for ${memberData.memberName} in ${selectedMonth}`);
+      // Show success message
+      setAlertModal({
+        isOpen: true,
+        title: 'Success',
+        message: `Successfully cleared outstanding balance of ₹${totalOutstanding.toLocaleString()} for ${member.name} in ${selectedMonth}`,
+        type: 'success'
+      });
     } catch (error) {
       console.error("Error clearing outstanding balance:", error);
-      alert("Failed to clear outstanding balance. Please try again.");
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'Failed to clear outstanding balance. Please try again.',
+        type: 'error'
+      });
     }
   };
 
@@ -297,14 +387,24 @@ export default function DashboardPage({ userId }) {
                   <div className="mb-4">
                     <button
                       onClick={async () => {
-                        try {
-                          setMonthlyStats(null);
-                          await updateMonthlyStats(userId, selectedMonth);
-                          alert("Monthly stats recalculated successfully!");
-                        } catch (error) {
-                          console.error("Error recalculating monthly stats:", error);
-                          alert("Failed to recalculate monthly stats");
-                        }
+                      try {
+                        setMonthlyStats(null);
+                        await updateMonthlyStats(userId, selectedMonth);
+                        setAlertModal({
+                          isOpen: true,
+                          title: 'Success',
+                          message: 'Monthly stats recalculated successfully!',
+                          type: 'success'
+                        });
+                      } catch (error) {
+                        console.error("Error recalculating monthly stats:", error);
+                        setAlertModal({
+                          isOpen: true,
+                          title: 'Error',
+                          message: 'Failed to recalculate monthly stats. Please try again.',
+                          type: 'error'
+                        });
+                      }
                       }}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     >
@@ -616,13 +716,45 @@ export default function DashboardPage({ userId }) {
                               <p className="font-bold text-lg text-slate-200">
                                 {member.memberName}
                               </p>
-                              <div className="mt-2">
-                                <p className="text-xs text-rose-300/80 mb-1 uppercase tracking-wide">
-                                  Total Outstanding
-                                </p>
-                                <p className="font-bold text-2xl text-rose-400">
-                                  ₹{member.due.toLocaleString()}
-                                </p>
+                              <div className="mt-2 space-y-1">
+                                {member.previousBalance > 0 && (
+                                  <div className="flex justify-between items-center">
+                                    <p className="text-xs text-orange-400">
+                                      Previous Balance:
+                                    </p>
+                                    <p className="text-sm text-orange-300 font-semibold">
+                                      ₹{member.previousBalance.toLocaleString()}
+                                    </p>
+                                  </div>
+                                )}
+                                <div className="flex justify-between items-center">
+                                  <p className="text-xs text-slate-400">
+                                    This Month Target:
+                                  </p>
+                                  <p className="text-sm text-slate-300 font-semibold">
+                                    ₹{(member.monthlyTarget || 0).toLocaleString()}
+                                  </p>
+                                </div>
+                                {member.paidThisMonth !== 0 && (
+                                  <div className="flex justify-between items-center">
+                                    <p className={`text-xs ${member.paidThisMonth > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                      Paid This Month:
+                                    </p>
+                                    <p className={`text-sm font-semibold ${member.paidThisMonth > 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                                      {member.paidThisMonth > 0 ? '-' : '+'}₹{Math.abs(member.paidThisMonth).toLocaleString()}
+                                    </p>
+                                  </div>
+                                )}
+                                <div className="border-t border-slate-600 pt-1 mt-1">
+                                  <div className="flex justify-between items-center">
+                                    <p className="text-xs text-rose-300/80 uppercase tracking-wide">
+                                      Total Outstanding
+                                    </p>
+                                    <p className="font-bold text-2xl text-rose-400">
+                                      ₹{member.due.toLocaleString()}
+                                    </p>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                             <button
@@ -667,6 +799,24 @@ export default function DashboardPage({ userId }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '', type: 'info' })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+      />
     </FadeIn>
   );
 }

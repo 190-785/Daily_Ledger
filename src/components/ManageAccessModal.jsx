@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { revokeListAccess } from '../firebase';
+import { AlertModal, ConfirmModal } from './';
 
 export default function ManageAccessModal({ list, onClose, onAccessRevoked }) {
   const [revoking, setRevoking] = useState(null);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const sharedUsers = Array.isArray(list.sharedWith)
     ? list.sharedWith
     : list.sharedWith
@@ -12,19 +15,30 @@ export default function ManageAccessModal({ list, onClose, onAccessRevoked }) {
         }))
       : [];
 
-  const handleRevoke = async (sharedUser) => {
-    if (!confirm(`Revoke access for @${sharedUser.username}?`)) return;
-
-    setRevoking(sharedUser.userId);
-    try {
-      await revokeListAccess(list.id, list.ownerId || list.userId, sharedUser.userId);
-      onAccessRevoked?.();
-    } catch (error) {
-      console.error('Error revoking access:', error);
-      alert('Failed to revoke access. Please try again.');
-    } finally {
-      setRevoking(null);
-    }
+  const handleRevoke = (sharedUser) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Revoke Access',
+      message: `Revoke access for @${sharedUser.username}?`,
+      onConfirm: async () => {
+        setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null });
+        setRevoking(sharedUser.userId);
+        try {
+          await revokeListAccess(list.id, list.ownerId || list.userId, sharedUser.userId);
+          onAccessRevoked?.();
+        } catch (error) {
+          console.error('Error revoking access:', error);
+          setAlertModal({
+            isOpen: true,
+            title: 'Error',
+            message: 'Failed to revoke access. Please try again.',
+            type: 'error'
+          });
+        } finally {
+          setRevoking(null);
+        }
+      }
+    });
   };
 
   const getShareTypeLabel = (type) => {
@@ -172,6 +186,24 @@ export default function ManageAccessModal({ list, onClose, onAccessRevoked }) {
           </button>
         </div>
       </div>
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '', type: 'info' })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+      />
     </div>
   );
 }
