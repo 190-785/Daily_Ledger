@@ -338,33 +338,34 @@ export async function updateMonthlyStats(userId, monthYear) {
       let calculationStartDate = null;
 
       // Use the EARLIER of member creation date or first transaction date
+      // Always use UTC to avoid timezone issues when converting to month keys
       if (memberCreatedDate && earliestTransactionDate) {
         // Both exist, use whichever is earlier
-        calculationStartDate = memberCreatedDate < earliestTransactionDate
-          ? new Date(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1)
-          : new Date(earliestTransactionDate.getFullYear(), earliestTransactionDate.getMonth(), 1);
+        const memberMonth = Date.UTC(memberCreatedDate.getFullYear(), memberCreatedDate.getMonth(), 1);
+        const transactionMonth = Date.UTC(earliestTransactionDate.getFullYear(), earliestTransactionDate.getMonth(), 1);
+        calculationStartDate = new Date(Math.min(memberMonth, transactionMonth));
       } else if (memberCreatedDate) {
         // Only member creation date exists
-        calculationStartDate = new Date(
+        calculationStartDate = new Date(Date.UTC(
           memberCreatedDate.getFullYear(),
           memberCreatedDate.getMonth(),
           1
-        );
+        ));
       } else if (earliestTransactionDate) {
         // Only transaction date exists (virtual member)
-        calculationStartDate = new Date(
+        calculationStartDate = new Date(Date.UTC(
           earliestTransactionDate.getFullYear(),
           earliestTransactionDate.getMonth(),
           1
-        );
+        ));
       }
 
-      // Get the start of the month we are viewing
-      const viewMonthStart = new Date(
+      // Get the start of the month we are viewing (use UTC to avoid timezone issues)
+      const viewMonthStart = new Date(Date.UTC(
         startDate.getFullYear(),
         startDate.getMonth(),
         1
-      );
+      ));
 
       if (calculationStartDate && calculationStartDate < viewMonthStart) {
         let checkDate = calculationStartDate;
@@ -395,7 +396,7 @@ export async function updateMonthlyStats(userId, monthYear) {
         // If there was a cleared month, start accumulating from the month AFTER it
         if (lastClearedMonth) {
           const clearedDate = new Date(lastClearedMonth + '-01T00:00:00Z');
-          clearedDate.setMonth(clearedDate.getMonth() + 1);
+          clearedDate.setUTCMonth(clearedDate.getUTCMonth() + 1);
           // Only start from cleared month + 1 if it's later than the original start
           if (clearedDate > checkDate) {
             checkDate = clearedDate;
@@ -413,7 +414,7 @@ export async function updateMonthlyStats(userId, monthYear) {
           }
           
           previousBalanceDue += effectiveMonthlyTarget - paidThisMonth;
-          checkDate.setMonth(checkDate.getMonth() + 1);
+          checkDate.setUTCMonth(checkDate.getUTCMonth() + 1);
         }
       }
       // --- END: REVISED PREVIOUS BALANCE CALCULATION ---
