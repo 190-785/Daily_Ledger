@@ -32,7 +32,7 @@ export async function updateDailyStats(userId, date) {
     const todayTransactions = todaySnapshot.docs.map((doc) => doc.data());
 
     const totalCollected = todayTransactions
-      .filter((t) => t.type !== "outstanding_cleared") // <-- ADD THIS LINE
+      .filter((t) => t.type !== "outstanding_cleared")
       .reduce((sum, t) => sum + t.amount, 0);
 
     // Get ALL transactions for outstanding calculation
@@ -112,14 +112,6 @@ export async function updateDailyStats(userId, date) {
       }
 
       const outstandingBalance = totalExpected - totalPaidAllTime;
-
-      // Debug log for troubleshooting
-      if (outstandingBalance !== 0) {
-        console.log(
-          `Member: ${member.name}, Expected: ${totalExpected}, Paid: ${totalPaidAllTime}, Outstanding: ${outstandingBalance}`,
-          earliestTransactionDate ? `(Start: ${startDate.toISOString().slice(0, 7)})` : ''
-        );
-      }
 
       // Paid tab: Only members who paid something today (amount > 0)
       if (paidToday > 0) {
@@ -225,9 +217,6 @@ export async function updateMonthlyStats(userId, monthYear) {
         !membersMap.has(transaction.memberId) &&
         !virtualMembers.has(transaction.memberId)
       ) {
-        console.log(
-          `Found virtual member: ${transaction.memberName} (${transaction.memberId})`
-        );
         // Create a virtual member with default values
         virtualMembers.set(transaction.memberId, {
           id: transaction.memberId,
@@ -238,10 +227,6 @@ export async function updateMonthlyStats(userId, monthYear) {
         });
       }
     });
-
-    console.log(
-      `Processing ${currentMembers.length} current members and ${virtualMembers.size} virtual members for ${monthYear}`
-    );
 
     // Combine current members with virtual members
     const allMembersToProcess = [
@@ -311,31 +296,10 @@ export async function updateMonthlyStats(userId, monthYear) {
 
       const memberMonths = previousMonthsMap.get(currentMember.id) || new Map();
 
-      // Debug for specific members
-      if (currentMember.name === "Rin") {
-        console.log(`[${monthYear}] ${currentMember.name} - Member months map (previous months):`, 
-          Array.from(memberMonths.entries()).map(([month, amount]) => `${month}: ₹${amount}`)
-        );
-        console.log(`[${monthYear}] ${currentMember.name} - All previous transactions:`, 
-          previousTransactions.filter(t => t.memberId === currentMember.id).map(t => ({
-            date: t.date,
-            amount: t.amount,
-            type: t.type,
-            description: t.description
-          }))
-        );
-      }
-
       // Determine the first month to start charging them
       const earliestTransactionDate = earliestTransactionMap.get(
         currentMember.id
       );
-
-      // Debug for specific members
-      if (currentMember.name === "Rin") {
-        console.log(`[${monthYear}] ${currentMember.name} - Earliest transaction date:`, earliestTransactionDate);
-        console.log(`[${monthYear}] ${currentMember.name} - Member created date:`, memberCreatedDate);
-      }
 
       let calculationStartDate = null;
 
@@ -384,17 +348,6 @@ export async function updateMonthlyStats(userId, monthYear) {
           }
         });
 
-        // Debug for specific members
-        if (currentMember.name === "Rin" || currentMember.name === "fvu") {
-          console.log(`[${monthYear}] ${currentMember.name} - Last Cleared Month:`, lastClearedMonth);
-          console.log(`[${monthYear}] ${currentMember.name} - Previous cleared transactions:`, 
-            memberPreviousTransactions.filter(t => t.type === 'outstanding_cleared').map(t => ({
-              date: t.date,
-              amount: t.amount
-            }))
-          );
-        }
-
         // If there was a cleared month, start accumulating from the month AFTER it
         if (lastClearedMonth) {
           const clearedDate = new Date(lastClearedMonth + '-01T00:00:00Z');
@@ -410,11 +363,6 @@ export async function updateMonthlyStats(userId, monthYear) {
           const monthKey = checkDate.toISOString().slice(0, 7);
           const paidThisMonth = memberMonths.get(monthKey) || 0;
           
-          // Debug for specific members
-          if (currentMember.name === "Rin" || currentMember.name === "fvu") {
-            console.log(`[${monthYear}] ${currentMember.name} - Accumulating ${monthKey}: target=${effectiveMonthlyTarget}, paid=${paidThisMonth}, adding=${effectiveMonthlyTarget - paidThisMonth}`);
-          }
-          
           previousBalanceDue += effectiveMonthlyTarget - paidThisMonth;
           checkDate.setUTCMonth(checkDate.getUTCMonth() + 1);
         }
@@ -429,40 +377,12 @@ export async function updateMonthlyStats(userId, monthYear) {
         .filter((t) => t.type !== 'outstanding_cleared')
         .reduce((sum, t) => sum + t.amount, 0);
 
-      // Debug for specific members
-      if (currentMember.name === "Rin") {
-        console.log(`[${monthYear}] ${currentMember.name} - This month transactions:`, 
-          thisMonthTransactions.map(t => ({ date: t.date, amount: t.amount, type: t.type }))
-        );
-        console.log(`[${monthYear}] ${currentMember.name} - Paid this month: ₹${paidThisMonth}`);
-      }
-
-      // Debug: Log transactions for ariana
-      if (currentMember.name === "ariana") {
-        console.log(`[${monthYear}] ariana transactions this month:`, thisMonthTransactions.map(t => ({
-          date: t.date,
-          amount: t.amount,
-          type: t.type,
-          description: t.description
-        })));
-      }
-
       // This is the key: Target for *this* month + all previous balance - paid *this* month
       const finalBalance =
         effectiveMonthlyTarget + previousBalanceDue - paidThisMonth;
 
       // Check if outstanding was cleared this month
       const hasOutstandingCleared = thisMonthTransactions.some(t => t.type === 'outstanding_cleared');
-
-      // Debug logging for all members with outstanding
-      if (finalBalance > 0 || currentMember.name === "ariana") {
-        console.log(`[${monthYear}] ${currentMember.name}:
-  Monthly Target: ₹${effectiveMonthlyTarget.toLocaleString()}
-  Previous Balance: ₹${previousBalanceDue.toLocaleString()}
-  Paid This Month: ₹${paidThisMonth.toLocaleString()}
-  Final Outstanding: ₹${finalBalance.toLocaleString()}
-  Outstanding Cleared: ${hasOutstandingCleared}`);
-      }
 
       // Only add to membersWithDues if they have outstanding AND it hasn't been cleared this month
       if (finalBalance > 0 && !hasOutstandingCleared) {

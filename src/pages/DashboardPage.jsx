@@ -9,22 +9,22 @@ import {
   Timestamp,
   doc,
 } from "firebase/firestore";
-import { db } from "/src/firebase.js";
+import { db } from "../firebase.js";
 import {
   updateDailyStats,
   updateMonthlyStats,
-} from "/src/utils/statsCalculator.js";
+} from "../utils/statsCalculator.js";
 import Card, {
   CardHeader,
   CardTitle,
   CardContent,
-} from "/src/components/Card.jsx";
-import { Heading, Text } from "/src/components/Typography.jsx";
-import Button from "/src/components/Button.jsx";
-import LoadingSpinner, { EmptyState } from "/src/components/LoadingSpinner.jsx";
-import { FadeIn, Stagger } from "/src/components/Animations.jsx";
-import { AlertModal, ConfirmModal } from "/src/components/Modal.jsx";
-import { exportMonthlyToExcel } from "/src/utils/excelExport.js";
+} from "../components/Card.jsx";
+import { Heading, Text } from "../components/Typography.jsx";
+import Button from "../components/Button.jsx";
+import LoadingSpinner, { EmptyState } from "../components/LoadingSpinner.jsx";
+import { FadeIn, Stagger } from "../components/Animations.jsx";
+import { AlertModal, ConfirmModal } from "../components/Modal.jsx";
+import { exportMonthlyToExcel } from "../utils/excelExport.js";
 
 const getMonthYear = (date = new Date()) => date.toISOString().slice(0, 7);
 const getTodayDate = () => new Date().toISOString().split("T")[0];
@@ -88,14 +88,12 @@ export default function DashboardPage({ userId }) {
 
       const unsubscribe = onSnapshot(dailyStatsRef, (docSnap) => {
         if (docSnap.exists()) {
-          // --- THIS IS THE FIX ---
           // Merge Firestore data with initial state to ensure all keys exist
           setDailyStats(prevStats => ({
             ...initialDailyStats, // Start with the default structure
             ...docSnap.data(),     // Overwrite with Firestore data
             recentTransactions: prevStats.recentTransactions || [], // Preserve recentTransactions
           }));
-          // --- END FIX ---
         } else {
           // If no stats doc exists, trigger an update to create one
           setDailyStats(initialDailyStats); // Reset to initial state first

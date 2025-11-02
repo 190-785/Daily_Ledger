@@ -34,7 +34,6 @@ export default function SharedListViewPage({ userId }) {
         }
 
         const sharedListData = { id: sharedListSnap.id, ...sharedListSnap.data() };
-        console.log('Shared list data:', sharedListData);
         setSharedList(sharedListData);
 
         // Set default active tab based on allowed views
@@ -47,9 +46,6 @@ export default function SharedListViewPage({ userId }) {
         // Support both ownerUserId and ownerId for backwards compatibility
         const ownerId = sharedListData.ownerUserId || sharedListData.ownerId;
         const memberIds = sharedListData.memberIds || [];
-        
-        console.log('Owner ID:', ownerId);
-        console.log('Member IDs:', memberIds);
         
         if (!ownerId) {
           console.error('No owner ID found in shared list data');
@@ -69,8 +65,6 @@ export default function SharedListViewPage({ userId }) {
           const membersQuery = query(membersRef, firestoreOrderBy('rank', 'asc'));
           const membersSnap = await getDocs(membersQuery);
           
-          console.log('Total members fetched from owner:', membersSnap.size);
-          
           if (membersSnap.empty) {
             console.warn('Owner has no members in their collection');
             setMembers([]);
@@ -83,8 +77,6 @@ export default function SharedListViewPage({ userId }) {
               allMembers.push({ id: doc.id, ...doc.data() });
             }
           });
-          
-          console.log('Filtered members for this list:', allMembers);
           
           if (allMembers.length === 0) {
             console.warn('None of the member IDs matched actual members in owner collection');
@@ -161,7 +153,6 @@ const dailyDataMap = members.map(member => ({
   hasPaid: (transactionsByMember[member.id] || []).length > 0
 }));
 
-console.log('Daily transactions fetched:', dailyDataMap);
 setDailyData(dailyDataMap);
       } catch (err) {
         console.error('Error fetching daily data:', err);
@@ -209,7 +200,6 @@ setDailyData(dailyDataMap);
           }
         }
 
-        console.log('Monthly stats fetched:', monthlyStats.length);
         setMonthlyData(monthlyStats);
       } catch (err) {
         console.error('Error fetching monthly data:', err);
