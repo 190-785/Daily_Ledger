@@ -130,7 +130,6 @@ export default function SharedListViewPage({ userId }) {
     const fetchDailyData = async () => {
       try {
         const ownerId = sharedList.ownerUserId || sharedList.ownerId;
-        const memberDataMap = [];
 
         // NEW, EFFICIENT QUERY
 const memberIds = members.map(m => m.id);
@@ -161,10 +160,9 @@ const dailyDataMap = members.map(member => ({
   total: (transactionsByMember[member.id] || []).reduce((sum, t) => sum + t.amount, 0),
   hasPaid: (transactionsByMember[member.id] || []).length > 0
 }));
-setDailyData(dailyDataMap);
 
-        console.log('Daily transactions fetched:', memberDataMap);
-        setDailyData(memberDataMap);
+console.log('Daily transactions fetched:', dailyDataMap);
+setDailyData(dailyDataMap);
       } catch (err) {
         console.error('Error fetching daily data:', err);
         console.error('Error code:', err.code);
