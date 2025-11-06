@@ -146,7 +146,12 @@ service cloud.firestore {
                         (request.resource.data.paymentType == 'daily' || request.resource.data.paymentType == 'monthly') &&
                         request.resource.data.rank is number &&
                         request.resource.data.rank >= 0 &&
-                        request.resource.data.createdOn is timestamp;
+                        request.resource.data.createdOn is timestamp &&
+                        // Archive fields validation on create
+                        request.resource.data.archived is bool &&
+                        request.resource.data.archived == false &&
+                        (!request.resource.data.keys().hasAny(['archivedOn']) || request.resource.data.archivedOn == null) &&
+                        (!request.resource.data.keys().hasAny(['archivedReason']) || request.resource.data.archivedReason == '');
         
         allow update: if isOwner(userId) &&
                         isValidString(request.resource.data.name, 1, 100) &&
@@ -157,7 +162,20 @@ service cloud.firestore {
                         request.resource.data.monthlyTarget >= 0 &&
                         request.resource.data.monthlyTarget <= 1000000 &&
                         request.resource.data.paymentType is string &&
-                        (request.resource.data.paymentType == 'daily' || request.resource.data.paymentType == 'monthly');
+                        (request.resource.data.paymentType == 'daily' || request.resource.data.paymentType == 'monthly') &&
+                        // Archive fields validation on update
+                        request.resource.data.archived is bool &&
+                        (
+                          // If archived, must have archivedOn timestamp and optional reason
+                          (request.resource.data.archived == true && 
+                           request.resource.data.archivedOn is timestamp &&
+                           (!request.resource.data.keys().hasAny(['archivedReason']) || 
+                            request.resource.data.archivedReason is string)) ||
+                          // If not archived, archivedOn should be null and archivedReason should be empty
+                          (request.resource.data.archived == false && 
+                           (!request.resource.data.keys().hasAny(['archivedOn']) || request.resource.data.archivedOn == null) &&
+                           (!request.resource.data.keys().hasAny(['archivedReason']) || request.resource.data.archivedReason == ''))
+                        );
         
         allow delete: if isOwner(userId);
       }

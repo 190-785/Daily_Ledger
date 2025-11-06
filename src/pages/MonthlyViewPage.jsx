@@ -60,32 +60,56 @@ export default function MonthlyViewPage({ userId }) {
         .map((doc) => ({ id: doc.id, ...doc.data() }))
         .filter((t) => t.type !== 'outstanding_cleared'); // Hide clearing transactions from display
       setAllTransactions(transactions);
-      
-      // Calculate available members (current + virtual members from transactions)
-      const currentMemberIds = new Set(members.map(m => m.id));
-      const virtualMembers = new Map();
-      
-      transactions.forEach(transaction => {
-        if (!currentMemberIds.has(transaction.memberId) && !virtualMembers.has(transaction.memberId)) {
-          virtualMembers.set(transaction.memberId, {
-            id: transaction.memberId,
-            name: transaction.memberName,
-            isVirtual: true
-          });
-        }
-      });
-      
-      const allAvailableMembers = [...members, ...Array.from(virtualMembers.values())]
-        .sort((a, b) => (a.rank || 0) - (b.rank || 0));
-      
-      setAvailableMembers(allAvailableMembers);
     });
 
     return () => {
       unsubscribeMembers();
       unsubscribeTrans();
     };
-  }, [userId, members]);
+  }, [userId]);
+
+  // Update available members when members, transactions, or selected month changes
+  useEffect(() => {
+    if (!selectedMonth) return;
+
+    const selectedMonthDate = new Date(`${selectedMonth}-01T00:00:00Z`);
+    
+    // Filter members based on archive status and selected month
+    const activeMembers = members.filter((member) => {
+      if (!member.archived) return true;
+      
+      if (member.archivedOn) {
+        const archiveDate = member.archivedOn.toDate();
+        const archiveMonthStart = new Date(
+          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
+        );
+        // Include if viewing month is before archive month
+        return selectedMonthDate < archiveMonthStart;
+      }
+      
+      // If archived but no archivedOn date, exclude
+      return false;
+    });
+    
+    // Calculate available members (filtered current + virtual members from transactions)
+    const currentMemberIds = new Set(activeMembers.map(m => m.id));
+    const virtualMembers = new Map();
+    
+    allTransactions.forEach(transaction => {
+      if (!currentMemberIds.has(transaction.memberId) && !virtualMembers.has(transaction.memberId)) {
+        virtualMembers.set(transaction.memberId, {
+          id: transaction.memberId,
+          name: transaction.memberName,
+          isVirtual: true
+        });
+      }
+    });
+    
+    const allAvailableMembers = [...activeMembers, ...Array.from(virtualMembers.values())]
+      .sort((a, b) => (a.rank || 0) - (b.rank || 0));
+    
+    setAvailableMembers(allAvailableMembers);
+  }, [members, allTransactions, selectedMonth]);
 
   const calculateMonthlyData = useCallback(() => {
     if (!selectedMemberId || !selectedMonth) {
@@ -138,9 +162,32 @@ export default function MonthlyViewPage({ userId }) {
       monthlyTarget = calculateMonthlyTargetFromTransactions(memberTransactions);
     }
 
+    // Pro-rate for archive month if this is the month they were archived
+    if (member.archived && member.archivedOn) {
+      const archiveDate = member.archivedOn.toDate();
+      const archiveMonthStart = new Date(
+        Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
+      );
+      
+      // If viewing the exact month they were archived, pro-rate the target
+      if (startDate.getTime() === archiveMonthStart.getTime()) {
+        const totalDaysInMonth = new Date(
+          startDate.getFullYear(),
+          startDate.getMonth() + 1,
+          0
+        ).getDate();
+        const daysBeforeArchive = archiveDate.getDate(); // Days 1 to archive day (inclusive)
+        
+        // Pro-rate: (days before archive / total days) * monthly target
+        monthlyTarget = Math.round(
+          (daysBeforeArchive / totalDaysInMonth) * monthlyTarget
+        );
+      }
+    }
+
     let balanceBroughtForward = 0; // Negative means due, positive means credit
     Object.keys(months).forEach((month) => {
-      balanceBroughtForward += months[month].paid - monthlyTarget;
+      balanceBroughtForward += months[month].paid - (member.monthlyTarget || 0);
     });
 
     const finalBalanceDue =
