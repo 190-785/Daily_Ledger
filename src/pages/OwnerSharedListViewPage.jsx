@@ -8,6 +8,7 @@ export default function OwnerSharedListViewPage({ userId }) {
   const navigate = useNavigate();
   const [list, setList] = useState(null);
   const [members, setMembers] = useState([]);
+  const [filteredMembers, setFilteredMembers] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [dailyData, setDailyData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,23 +67,53 @@ export default function OwnerSharedListViewPage({ userId }) {
     fetchList();
   }, [userId, listId]);
 
+  // Filter members based on archive status and selected date
+  useEffect(() => {
+    if (members.length === 0) {
+      setFilteredMembers([]);
+      return;
+    }
+
+    const viewDate = new Date(selectedDate + "T00:00:00Z");
+
+    const filtered = members.filter((member) => {
+      if (!member.archived) return true;
+      
+      if (member.archivedOn) {
+        const archiveDate = member.archivedOn.toDate();
+        const archiveDateOnly = new Date(
+          archiveDate.getFullYear(),
+          archiveDate.getMonth(),
+          archiveDate.getDate()
+        );
+        // Exclude if date is on/after archive date
+        return viewDate < archiveDateOnly;
+      }
+      
+      // If archived but no archivedOn date, exclude
+      return false;
+    });
+
+    setFilteredMembers(filtered);
+  }, [members, selectedDate]);
+
 // Fetch daily data when date changes
 useEffect(() => {
-  if (!list || members.length === 0) {
+  if (!list || filteredMembers.length === 0) {
     setDailyData([]); // Clear data if no members
     return;
   }
   
   const fetchDailyData = async () => {
     try {
-      // 1. Get all member IDs for the 'in' query
-      const memberIds = members.map(m => m.id);
+      // 1. Get filtered member IDs for the 'in' query
+      const memberIds = filteredMembers.map(m => m.id);
 
-      // 2. Create a single query to get all transactions for ALL members
+      // 2. Create a single query to get all transactions for filtered members
       const transactionsRef = collection(db, 'users', userId, 'transactions');
       const transactionsQuery = query(
         transactionsRef,
-        where('memberId', 'in', memberIds), // <-- The efficient 'in' query
+        where('memberId', 'in', memberIds), // <-- Query for filtered members only
         where('date', '==', selectedDate)
       );
 
@@ -101,8 +132,8 @@ useEffect(() => {
         transactionsByMember[transData.memberId].push(transData);
       });
 
-      // 5. Build the final dailyData array, matching transactions to members
-      const dailyTransactions = members.map(member => {
+      // 5. Build the final dailyData array using filtered members
+      const dailyTransactions = filteredMembers.map(member => {
         const memberTransactions = transactionsByMember[member.id] || [];
         
         // Sort this member's transactions
@@ -126,7 +157,7 @@ useEffect(() => {
   };
 
   fetchDailyData();
-}, [list, members, selectedDate, userId]);
+}, [list, filteredMembers, selectedDate, userId]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -188,7 +219,10 @@ useEffect(() => {
             👑 Owner View
           </div>
           <div className="bg-white/20 rounded-full px-3 py-1">
-            👥 {members.length} member{members.length !== 1 ? 's' : ''}
+            👥 {filteredMembers.length} active member{filteredMembers.length !== 1 ? 's' : ''}
+            {members.length !== filteredMembers.length && (
+              <span className="ml-1 opacity-75">({members.length - filteredMembers.length} archived)</span>
+            )}
           </div>
           <div className="bg-white/20 rounded-full px-3 py-1">
             🔗 Shared with {Object.keys(list.sharedWith || {}).length} user{Object.keys(list.sharedWith || {}).length !== 1 ? 's' : ''}
@@ -295,14 +329,14 @@ useEffect(() => {
           <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
             <div className="text-sm text-gray-600 mb-1">Members Paid</div>
             <div className="text-2xl font-bold text-blue-600">
-              {paidCount} / {members.length}
+              {paidCount} / {filteredMembers.length}
             </div>
           </div>
           
           <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
             <div className="text-sm text-gray-600 mb-1">Members Unpaid</div>
             <div className="text-2xl font-bold text-orange-600">
-              {unpaidCount} / {members.length}
+              {unpaidCount} / {filteredMembers.length}
             </div>
           </div>
         </div>

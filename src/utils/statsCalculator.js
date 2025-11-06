@@ -18,10 +18,30 @@ export async function updateDailyStats(userId, date) {
     const membersSnapshot = await getDocs(
       collection(db, "users", userId, "members")
     );
-    const members = membersSnapshot.docs.map((doc) => ({
+    const allMembers = membersSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
+
+    // Filter out archived members for dates on/after their archive date
+    const currentDate = new Date(date + "T00:00:00Z");
+    const members = allMembers.filter((member) => {
+      if (!member.archived) return true;
+      
+      if (member.archivedOn) {
+        const archiveDate = member.archivedOn.toDate();
+        const archiveDateOnly = new Date(
+          archiveDate.getFullYear(),
+          archiveDate.getMonth(),
+          archiveDate.getDate()
+        );
+        // Exclude if current date is on or after archive date
+        return currentDate < archiveDateOnly;
+      }
+      
+      // If archived but no archivedOn date, exclude from current stats
+      return false;
+    });
 
     // Get today's transactions
     const todayQuery = query(
@@ -166,7 +186,7 @@ export async function updateMonthlyStats(userId, monthYear) {
     const membersSnapshot = await getDocs(
       collection(db, "users", userId, "members")
     );
-    const currentMembers = membersSnapshot.docs.map((doc) => ({
+    const allCurrentMembers = membersSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
@@ -184,6 +204,23 @@ export async function updateMonthlyStats(userId, monthYear) {
       .getDate()
       .toString()
       .padStart(2, "0")}`;
+
+    // Filter out archived members for months on/after their archive month
+    const currentMembers = allCurrentMembers.filter((member) => {
+      if (!member.archived) return true;
+      
+      if (member.archivedOn) {
+        const archiveDate = member.archivedOn.toDate();
+        const archiveMonthStart = new Date(
+          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
+        );
+        // Exclude if viewing month is after archive month
+        return startDate < archiveMonthStart;
+      }
+      
+      // If archived but no archivedOn date, exclude from current stats
+      return false;
+    });
 
     // Get this month's transactions
     const currentMonthQuery = query(
@@ -204,10 +241,33 @@ export async function updateMonthlyStats(userId, monthYear) {
       doc.data()
     );
 
-    // Create a map of current members for quick lookup
+    // Create a map of current members (filtered) for quick lookup
     const membersMap = new Map();
     currentMembers.forEach((member) => {
       membersMap.set(member.id, member);
+    });
+
+    // Also include archived members who were active during or before this month
+    const archivedMembersForThisMonth = allCurrentMembers.filter((member) => {
+      if (!member.archived) return false;
+      
+      if (member.archivedOn) {
+        const archiveDate = member.archivedOn.toDate();
+        const archiveMonthStart = new Date(
+          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
+        );
+        // Include if they were archived in this month or later (so they were active before/during)
+        return startDate <= archiveMonthStart;
+      }
+      
+      return false;
+    });
+
+    // Add archived members to the map
+    archivedMembersForThisMonth.forEach((member) => {
+      if (!membersMap.has(member.id)) {
+        membersMap.set(member.id, member);
+      }
     });
 
     // Find memberIds that appear in ANY transactions but don't exist as current members
@@ -228,9 +288,10 @@ export async function updateMonthlyStats(userId, monthYear) {
       }
     });
 
-    // Combine current members with virtual members
+    // Combine current members with archived members and virtual members
     const allMembersToProcess = [
       ...currentMembers,
+      ...archivedMembersForThisMonth,
       ...Array.from(virtualMembers.values()),
     ];
 
@@ -289,6 +350,30 @@ export async function updateMonthlyStats(userId, monthYear) {
             calculateMonthlyTargetFromTransactions(memberTransactions);
           currentMember.monthlyTarget = effectiveMonthlyTarget; // Save it for totalTarget calc
         }
+      }
+
+      // Pro-rate for archive month if this is the month they were archived
+      if (currentMember.archived && currentMember.archivedOn) {
+        const archiveDate = currentMember.archivedOn.toDate();
+        const archiveMonthStart = new Date(
+          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
+        );
+        
+        // If viewing the exact month they were archived, pro-rate the target
+        if (startDate.getTime() === archiveMonthStart.getTime()) {
+          const totalDaysInMonth = new Date(
+            startDate.getFullYear(),
+            startDate.getMonth() + 1,
+            0
+          ).getDate();
+          const daysBeforeArchive = archiveDate.getDate(); // Days 1 to archive day (inclusive)
+          
+          // Pro-rate: (days before archive / total days) * monthly target
+          effectiveMonthlyTarget = Math.round(
+            (daysBeforeArchive / totalDaysInMonth) * effectiveMonthlyTarget
+          );
+        }
+        // If viewing months after archive month, target should be 0 (but they're already filtered out)
       }
 
       // --- START: REVISED PREVIOUS BALANCE CALCULATION ---
@@ -433,6 +518,9 @@ export async function updateMonthlyStats(userId, monthYear) {
     const collectionRate =
       totalTarget > 0 ? Math.round((totalCollected / totalTarget) * 100) : 0;
 
+    // Count only non-archived, non-virtual members for the current month
+    const activeNonVirtualMembers = allCurrentMembers.filter((m) => !m.archived && !m.isVirtual);
+
     // Save to Firebase
     const statsData = {
       monthYear,
@@ -440,7 +528,7 @@ export async function updateMonthlyStats(userId, monthYear) {
       totalOutstanding,
       totalTarget,
       collectionRate,
-      totalMembers: currentMembers.length, // Only count current, non-virtual members
+      totalMembers: activeNonVirtualMembers.length, // Only count active, non-virtual members
       membersWithDues,
       updatedAt: Timestamp.now(),
     };

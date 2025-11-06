@@ -12,6 +12,7 @@ import {
   updateDoc, 
   deleteDoc,
   orderBy,
+  where,
   serverTimestamp
 } from 'firebase/firestore';
 
@@ -436,6 +437,179 @@ export const revokeListAccess = async (ownerUserId, listId, recipientUserId) => 
   } catch (error) {
     console.error('Error revoking access:', error);
     throw error;
+  }
+};
+
+// --- Member Archive Functions ---
+
+/**
+ * Calculates the current outstanding balance for a member
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} memberId - The member ID
+ * @returns {Promise<number>} - The outstanding balance
+ */
+export const calculateMemberOutstanding = async (userId, memberId) => {
+  try {
+    // Get member data
+    const memberRef = doc(db, 'users', userId, 'members', memberId);
+    const memberDoc = await getDoc(memberRef);
+    
+    if (!memberDoc.exists()) {
+      throw new Error('Member not found');
+    }
+    
+    const member = { id: memberDoc.id, ...memberDoc.data() };
+    
+    // Get all transactions for this member
+    const transactionsRef = collection(db, 'users', userId, 'transactions');
+    const transactionsQuery = query(transactionsRef, where('memberId', '==', memberId));
+    const transactionsSnap = await getDocs(transactionsQuery);
+    
+    const allTransactions = transactionsSnap.docs.map(doc => doc.data());
+    
+    // Calculate total paid (exclude outstanding_cleared transactions)
+    const totalPaid = allTransactions
+      .filter(t => t.type !== 'outstanding_cleared')
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    // Get member's start date (creation or earliest transaction)
+    const memberCreatedDate = member.createdOn?.toDate() || new Date(0);
+    const currentDate = new Date();
+    
+    // Find earliest transaction date
+    let earliestTransactionDate = null;
+    if (allTransactions.length > 0) {
+      const sortedTransactions = allTransactions
+        .map(t => new Date(t.date + "T00:00:00Z"))
+        .sort((a, b) => a - b);
+      earliestTransactionDate = sortedTransactions[0];
+    }
+    
+    // Use the earlier of member creation or first transaction
+    let startDate;
+    if (earliestTransactionDate && memberCreatedDate) {
+      startDate = earliestTransactionDate < memberCreatedDate 
+        ? earliestTransactionDate 
+        : memberCreatedDate;
+    } else if (earliestTransactionDate) {
+      startDate = earliestTransactionDate;
+    } else if (memberCreatedDate) {
+      startDate = memberCreatedDate;
+    } else {
+      startDate = new Date(0);
+    }
+    
+    // Calculate expected amount (monthlyTarget * number of months)
+    let totalExpected = 0;
+    let checkDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    
+    // Find most recent cleared month
+    let lastClearedMonth = null;
+    allTransactions.forEach(t => {
+      if (t.type === 'outstanding_cleared') {
+        const monthKey = t.date.slice(0, 7);
+        if (!lastClearedMonth || monthKey > lastClearedMonth) {
+          lastClearedMonth = monthKey;
+        }
+      }
+    });
+    
+    // If there was a cleared month, start from the month after
+    if (lastClearedMonth) {
+      const clearedDate = new Date(lastClearedMonth + '-01T00:00:00Z');
+      clearedDate.setUTCMonth(clearedDate.getUTCMonth() + 1);
+      if (clearedDate > checkDate) {
+        checkDate = clearedDate;
+      }
+    }
+    
+    // Count months and calculate expected
+    while (checkDate <= endDate) {
+      totalExpected += member.monthlyTarget || 0;
+      checkDate.setMonth(checkDate.getMonth() + 1);
+    }
+    
+    const outstanding = totalExpected - totalPaid;
+    return Math.max(0, outstanding); // Return 0 if negative (overpaid)
+  } catch (error) {
+    console.error('Error calculating outstanding balance:', error);
+    throw error;
+  }
+};
+
+/**
+ * Archives a member (removes from daily collection from archive date forward)
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} memberId - The member ID to archive
+ * @param {string} reason - Optional reason for archiving
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export const archiveMember = async (userId, memberId, reason = '') => {
+  try {
+    // First, check if member has outstanding balance
+    const outstanding = await calculateMemberOutstanding(userId, memberId);
+    
+    if (outstanding > 0) {
+      return {
+        success: false,
+        error: `Cannot archive member with outstanding balance of ₹${outstanding.toLocaleString()}. Please clear the outstanding balance first.`
+      };
+    }
+    
+    // Archive the member
+    const memberRef = doc(db, 'users', userId, 'members', memberId);
+    await updateDoc(memberRef, {
+      archived: true,
+      archivedOn: serverTimestamp(),
+      archivedReason: reason || '',
+      rank: null // Reset rank when archiving
+    });
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error archiving member:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to archive member'
+    };
+  }
+};
+
+/**
+ * Unarchives a member (restores them to active status)
+ * @param {string} userId - The user's Firebase Auth UID
+ * @param {string} memberId - The member ID to unarchive
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export const unarchiveMember = async (userId, memberId) => {
+  try {
+    // Get current max rank to place at end
+    const membersRef = collection(db, 'users', userId, 'members');
+    const membersQuery = query(membersRef);
+    const membersSnap = await getDocs(membersQuery);
+    
+    const maxRank = membersSnap.docs.reduce((max, doc) => {
+      const rank = doc.data().rank || 0;
+      return Math.max(max, rank);
+    }, 0);
+    
+    // Unarchive the member and place at end of list
+    const memberRef = doc(db, 'users', userId, 'members', memberId);
+    await updateDoc(memberRef, {
+      archived: false,
+      archivedOn: null,
+      archivedReason: '',
+      rank: maxRank + 1 // Place at end of active members
+    });
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error unarchiving member:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to unarchive member'
+    };
   }
 };
 

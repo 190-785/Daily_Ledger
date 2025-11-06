@@ -51,6 +51,10 @@ export default function LedgerPage({ userId }) {
   // Apply sorting and search
   useEffect(() => {
     let filtered = [...members];
+    
+    // Filter out archived members
+    filtered = filtered.filter((member) => !member.archived);
+    
     if (searchQuery.trim()) {
       filtered = filtered.filter((member) =>
         member.name.toLowerCase().includes(searchQuery.toLowerCase())

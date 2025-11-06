@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from "react";
-import { db } from "../firebase";
+import { db, archiveMember, unarchiveMember } from "../firebase";
 import {
   collection,
   addDoc,
@@ -13,6 +13,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import MemberListControls from "../components/MemberListControls";
+import { AlertModal, ConfirmModal } from "../components/Modal";
 
 export default function MembersPage({ userId }) {
 
@@ -32,6 +33,12 @@ export default function MembersPage({ userId }) {
   const [sortBy, setSortBy] = useState("addedTime");
   const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
   const [pendingMemberData, setPendingMemberData] = useState(null);
+  const [showArchivedMembers, setShowArchivedMembers] = useState(true);
+  const [archivingMember, setArchivingMember] = useState(null);
+  const [archiveReason, setArchiveReason] = useState("");
+  const [archiveError, setArchiveError] = useState("");
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showUnarchiveConfirm, setShowUnarchiveConfirm] = useState(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -60,8 +67,32 @@ export default function MembersPage({ userId }) {
         await batch.commit();
       }
     };
+
+    const initializeArchiveFields = async () => {
+      const membersQuery = query(collection(db, "users", userId, "members"));
+      const snapshot = await getDocs(membersQuery);
+      
+      const membersWithoutArchive = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((member) => member.archived === undefined);
+      
+      if (membersWithoutArchive.length > 0) {
+        const batch = writeBatch(db);
+        membersWithoutArchive.forEach((member) => {
+          const memberRef = doc(db, "users", userId, "members", member.id);
+          batch.update(memberRef, { 
+            archived: false,
+            archivedOn: null,
+            archivedReason: ""
+          });
+        });
+        
+        await batch.commit();
+      }
+    };
     
     initializeRanks();
+    initializeArchiveFields();
   }, [userId]);
 
   useEffect(() => {
@@ -80,6 +111,11 @@ export default function MembersPage({ userId }) {
 
   useEffect(() => {
     let filtered = [...members];
+
+    // Filter by archive status
+    if (!showArchivedMembers) {
+      filtered = filtered.filter((member) => !member.archived);
+    }
 
     if (searchQuery.trim()) {
       filtered = filtered.filter((member) =>
@@ -103,7 +139,7 @@ export default function MembersPage({ userId }) {
     }
 
     setDisplayedMembers(filtered);
-  }, [members, sortBy, searchQuery]);
+  }, [members, sortBy, searchQuery, showArchivedMembers]);
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -183,6 +219,9 @@ export default function MembersPage({ userId }) {
       ...memberData,
       createdOn: Timestamp.now(),
       rank: maxRank + 1,
+      archived: false,
+      archivedOn: null,
+      archivedReason: "",
     };
 
     console.log('Creating member with data:', newMemberData);
@@ -258,6 +297,57 @@ export default function MembersPage({ userId }) {
     setPendingMemberData(null);
   };
 
+  const handleArchiveClick = (member) => {
+    setArchivingMember(member);
+    setArchiveReason("");
+    setArchiveError("");
+    setShowArchiveModal(true);
+  };
+
+  const handleArchiveConfirm = async () => {
+    if (!archivingMember) return;
+
+    const result = await archiveMember(userId, archivingMember.id, archiveReason);
+    
+    if (result.success) {
+      setShowArchiveModal(false);
+      setArchivingMember(null);
+      setArchiveReason("");
+      setArchiveError("");
+    } else {
+      setArchiveError(result.error || "Failed to archive member");
+    }
+  };
+
+  const handleArchiveCancel = () => {
+    setShowArchiveModal(false);
+    setArchivingMember(null);
+    setArchiveReason("");
+    setArchiveError("");
+  };
+
+  const handleUnarchiveClick = (member) => {
+    setShowUnarchiveConfirm(member);
+  };
+
+  const handleUnarchiveConfirm = async () => {
+    if (!showUnarchiveConfirm) return;
+
+    const result = await unarchiveMember(userId, showUnarchiveConfirm.id);
+    
+    if (result.success) {
+      setShowUnarchiveConfirm(null);
+    } else {
+      // Show error (could add error modal here)
+      alert(result.error || "Failed to unarchive member");
+      setShowUnarchiveConfirm(null);
+    }
+  };
+
+  const handleUnarchiveCancel = () => {
+    setShowUnarchiveConfirm(null);
+  };
+
   return (
     <div className="bg-white p-6 rounded-xl shadow-md">
       <div className="flex justify-between items-center mb-6">
@@ -282,6 +372,24 @@ export default function MembersPage({ userId }) {
         totalMembers={members.length}
         filteredCount={displayedMembers.length}
       />
+
+      {/* Archive Filter Toggle */}
+      <div className="mb-4 flex items-center gap-3 bg-gray-50 p-3 rounded-lg border">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showArchivedMembers}
+            onChange={(e) => setShowArchivedMembers(e.target.checked)}
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <span className="text-sm font-medium text-gray-700">
+            Show Archived Members
+          </span>
+        </label>
+        <span className="text-xs text-gray-500">
+          ({members.filter(m => m.archived).length} archived)
+        </span>
+      </div>
 
       {showForm && (
         <div className="mb-6 p-6 bg-gray-50 rounded-lg border">
@@ -441,10 +549,18 @@ export default function MembersPage({ userId }) {
               const isMonthlyMember = (member.paymentType || "daily") === "monthly";
               const monthlyTargetValue = Number(member.monthlyTarget || 0);
               const dailyDefaultValue = Number(member.defaultDailyPayment || 0);
+              const isArchived = member.archived || false;
 
               return (
-                <tr key={member.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3 px-4">{member.name}</td>
+                <tr key={member.id} className={`border-b hover:bg-gray-50 ${isArchived ? 'bg-gray-100 opacity-60' : ''}`}>
+                  <td className="py-3 px-4">
+                    {member.name}
+                    {isArchived && (
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 text-xs font-medium rounded bg-gray-300 text-gray-700">
+                        Archived
+                      </span>
+                    )}
+                  </td>
                   <td className="py-3 px-4">
                     <span
                       className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
@@ -486,19 +602,37 @@ export default function MembersPage({ userId }) {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleEdit(member)}
-                          className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-4 rounded-lg transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => setDeletingMember(member.id)}
-                          className="text-sm bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-4 rounded-lg transition-colors"
-                        >
-                          Delete
-                        </button>
+                      <div className="flex items-center flex-wrap gap-2">
+                        {!isArchived && (
+                          <>
+                            <button
+                              onClick={() => handleEdit(member)}
+                              className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-4 rounded-lg transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleArchiveClick(member)}
+                              className="text-sm bg-orange-600 hover:bg-orange-700 text-white font-semibold py-1.5 px-4 rounded-lg transition-colors"
+                            >
+                              Archive
+                            </button>
+                            <button
+                              onClick={() => setDeletingMember(member.id)}
+                              className="text-sm bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-4 rounded-lg transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                        {isArchived && (
+                          <button
+                            onClick={() => handleUnarchiveClick(member)}
+                            className="text-sm bg-green-600 hover:bg-green-700 text-white font-semibold py-1.5 px-4 rounded-lg transition-colors"
+                          >
+                            Unarchive
+                          </button>
+                        )}
                       </div>
                     )}
                   </td>
@@ -508,6 +642,74 @@ export default function MembersPage({ userId }) {
           </tbody>
         </table>
       </div>
+
+      {/* Archive Confirmation Modal */}
+      {showArchiveModal && archivingMember && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+        >
+          <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <h3 className="text-2xl font-bold mb-4 text-gray-800">
+              Archive Member
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to archive <strong>{archivingMember.name}</strong>?
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              This member will be removed from daily collection from {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} onwards. Historical data will remain visible.
+            </p>
+
+            {archiveError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">{archiveError}</p>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reason for archiving (optional)
+              </label>
+              <textarea
+                value={archiveReason}
+                onChange={(e) => setArchiveReason(e.target.value)}
+                placeholder="E.g., Left the group, Moved away, etc."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                rows="3"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleArchiveCancel}
+                className="bg-gray-300 hover:bg-gray-400 font-bold py-2 px-6 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleArchiveConfirm}
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-6 rounded-lg"
+              >
+                Archive Member
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unarchive Confirmation Modal */}
+      {showUnarchiveConfirm && (
+        <ConfirmModal
+          isOpen={!!showUnarchiveConfirm}
+          title="Unarchive Member"
+          message={`Are you sure you want to unarchive ${showUnarchiveConfirm.name}? They will be added back to active members.`}
+          confirmLabel="Unarchive"
+          cancelLabel="Cancel"
+          onConfirm={handleUnarchiveConfirm}
+          onCancel={handleUnarchiveCancel}
+          type="info"
+        />
+      )}
     </div>
   );
 }

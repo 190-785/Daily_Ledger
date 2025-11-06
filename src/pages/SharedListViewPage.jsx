@@ -8,6 +8,7 @@ export default function SharedListViewPage({ userId }) {
   const navigate = useNavigate();
   const [sharedList, setSharedList] = useState(null);
   const [members, setMembers] = useState([]);
+  const [filteredMembers, setFilteredMembers] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [dailyData, setDailyData] = useState([]);
   const [monthlyData, setMonthlyData] = useState(null);
@@ -84,6 +85,7 @@ export default function SharedListViewPage({ userId }) {
             console.warn('Available member IDs:', membersSnap.docs.map(d => d.id));
           }
           
+          // Store all members (including archived) for filtering based on selected date
           setMembers(allMembers);
         } catch (memberError) {
           console.error('Error fetching members:', memberError);
@@ -115,20 +117,62 @@ export default function SharedListViewPage({ userId }) {
     fetchSharedList();
   }, [userId, listId]);
 
+  // Filter members based on archive status and selected date
+  useEffect(() => {
+    if (members.length === 0) {
+      setFilteredMembers([]);
+      return;
+    }
+
+    const viewDate = new Date(selectedDate + "T00:00:00Z");
+    const viewMonthStart = new Date(
+      Date.UTC(viewDate.getFullYear(), viewDate.getMonth(), 1)
+    );
+
+    const filtered = members.filter((member) => {
+      if (!member.archived) return true;
+      
+      if (member.archivedOn) {
+        const archiveDate = member.archivedOn.toDate();
+        const archiveMonthStart = new Date(
+          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
+        );
+        
+        // For daily view: exclude if date is on/after archive date
+        if (activeTab === 'daily') {
+          const archiveDateOnly = new Date(
+            archiveDate.getFullYear(),
+            archiveDate.getMonth(),
+            archiveDate.getDate()
+          );
+          return viewDate < archiveDateOnly;
+        }
+        
+        // For monthly view: exclude if viewing month is after archive month
+        return viewMonthStart < archiveMonthStart;
+      }
+      
+      // If archived but no archivedOn date, exclude
+      return false;
+    });
+
+    setFilteredMembers(filtered);
+  }, [members, selectedDate, activeTab]);
+
   // Fetch daily data when date changes
   useEffect(() => {
-    if (!sharedList || members.length === 0) return;
+    if (!sharedList || filteredMembers.length === 0) return;
     
     const fetchDailyData = async () => {
       try {
         const ownerId = sharedList.ownerUserId || sharedList.ownerId;
 
-        // NEW, EFFICIENT QUERY
-const memberIds = members.map(m => m.id);
+        // Query for filtered members only
+const memberIds = filteredMembers.map(m => m.id);
 const transactionsRef = collection(db, 'users', ownerId, 'transactions');
 const transactionsQuery = query(
   transactionsRef,
-  where('memberId', 'in', memberIds), // Query for ALL members at once
+  where('memberId', 'in', memberIds), // Query for filtered members only
   where('date', '==', selectedDate)
 );
 const transactionsSnap = await getDocs(transactionsQuery);
@@ -145,8 +189,8 @@ transactionsSnap.docs.forEach(doc => {
   transactionsByMember[t.memberId].push(t);
 });
 
-// Then build your 'dailyData' map
-const dailyDataMap = members.map(member => ({
+// Then build your 'dailyData' map using filtered members
+const dailyDataMap = filteredMembers.map(member => ({
   member,
   transactions: transactionsByMember[member.id] || [],
   total: (transactionsByMember[member.id] || []).reduce((sum, t) => sum + t.amount, 0),
@@ -163,11 +207,11 @@ setDailyData(dailyDataMap);
     if (activeTab === 'daily') {
       fetchDailyData();
     }
-  }, [sharedList, members, selectedDate, activeTab]);
+  }, [sharedList, filteredMembers, selectedDate, activeTab]);
 
   // Fetch monthly data
   useEffect(() => {
-    if (!sharedList || members.length === 0 || activeTab !== 'monthly') return;
+    if (!sharedList || filteredMembers.length === 0 || activeTab !== 'monthly') return;
 
     const fetchMonthlyData = async () => {
       try {
@@ -178,7 +222,7 @@ setDailyData(dailyDataMap);
         const [year, month] = selectedDate.split('-');
         const monthKey = `${year}-${month}`;
 
-        for (const member of members) {
+        for (const member of filteredMembers) {
           const statsRef = doc(db, 'users', ownerId, 'monthly_stats', `${member.id}_${monthKey}`);
           const statsSnap = await getDoc(statsRef);
           
@@ -208,7 +252,7 @@ setDailyData(dailyDataMap);
     };
 
     fetchMonthlyData();
-  }, [sharedList, members, selectedDate, activeTab]);
+  }, [sharedList, filteredMembers, selectedDate, activeTab]);
 
   // Determine allowed date based on share type
   const getAllowedDate = () => {
@@ -322,7 +366,7 @@ setDailyData(dailyDataMap);
             {shareTypeInfo[shareType]?.label || shareType}
           </div>
           <div className="bg-white/20 rounded-full px-3 py-1">
-            👥 {members.length} member{members.length !== 1 ? 's' : ''}
+            👥 {filteredMembers.length} member{filteredMembers.length !== 1 ? 's' : ''}
           </div>
         </div>
         {!isDynamic && (
@@ -333,7 +377,20 @@ setDailyData(dailyDataMap);
       </div>
 
       {/* No Members Warning */}
-      {members.length === 0 && (
+      {filteredMembers.length === 0 && members.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-2 text-blue-700">
+            <span className="text-2xl">ℹ️</span>
+            <div>
+              <div className="font-medium">No Active Members for This Period</div>
+              <div className="text-sm text-blue-600 mt-1">
+                All members in this list were archived before the selected date/month.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {filteredMembers.length === 0 && members.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
           <div className="flex items-center gap-2 text-yellow-700">
             <span className="text-2xl">⚠️</span>
@@ -381,7 +438,7 @@ setDailyData(dailyDataMap);
 
 
       {/* Content */}
-      {members.length > 0 && allowedViews.includes(activeTab) ? (
+      {filteredMembers.length > 0 && allowedViews.includes(activeTab) ? (
         <>
           {/* Daily View */}
           {activeTab === 'daily' && (
@@ -468,14 +525,14 @@ setDailyData(dailyDataMap);
                   <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
                     <div className="text-sm text-gray-600 mb-1">Members Paid</div>
                     <div className="text-2xl font-bold text-blue-600">
-                      {dailyData.filter(item => item.hasPaid).length} / {members.length}
+                      {dailyData.filter(item => item.hasPaid).length} / {filteredMembers.length}
                     </div>
                   </div>
                   
                   <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
                     <div className="text-sm text-gray-600 mb-1">Members Unpaid</div>
                     <div className="text-2xl font-bold text-orange-600">
-                      {dailyData.filter(item => !item.hasPaid).length} / {members.length}
+                      {dailyData.filter(item => !item.hasPaid).length} / {filteredMembers.length}
                     </div>
                   </div>
                 </div>
@@ -626,11 +683,18 @@ setDailyData(dailyDataMap);
             </div>
           )}
         </>
-      ) : members.length === 0 ? (
+      ) : filteredMembers.length === 0 && members.length === 0 ? (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
           <div className="text-gray-500 mb-2">Unable to load list data</div>
           <p className="text-sm text-gray-400">
             Please contact the list owner if this issue persists.
+          </p>
+        </div>
+      ) : filteredMembers.length === 0 && members.length > 0 ? (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+          <div className="text-blue-700 font-semibold mb-2">No Active Members</div>
+          <p className="text-blue-600">
+            All members were archived before the selected period.
           </p>
         </div>
       ) : (
