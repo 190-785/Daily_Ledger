@@ -111,14 +111,25 @@ export default function DashboardPage({ userId }) {
       const unsubscribe = onSnapshot(monthlyStatsRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          // Check if stats are stale (older than 10 seconds)
+          // Check if stats are stale (older than 10 seconds) or might contain archived member data
           const updatedAt = data.updatedAt?.toDate();
           const now = new Date();
           const isStale = !updatedAt || (now - updatedAt) > 10000; // 10 seconds
           
-          if (isStale) {
-            // Stats exist but might be stale, recalculate in background
-            setMonthlyStats(data); // Show existing data immediately
+          // Also check if any member in membersWithDues is archived
+          // (This indicates stats need recalculation to exclude archived members)
+          const hasArchivedMembersInDues = (data.membersWithDues || []).some(memberDue => {
+            const member = members.find(m => m.id === memberDue.memberId);
+            return member && member.archived;
+          });
+          
+          if (isStale || hasArchivedMembersInDues) {
+            // Stats exist but might be stale or contain archived members, recalculate in background
+            if (!hasArchivedMembersInDues) {
+              setMonthlyStats(data); // Show existing data immediately if not showing archived members
+            } else {
+              setMonthlyStats(null); // Clear data if it contains archived members
+            }
             updateMonthlyStats(userId, selectedMonth).catch(error => {
               console.error("Error refreshing monthly stats:", error);
             });
@@ -142,7 +153,7 @@ export default function DashboardPage({ userId }) {
 
       return () => unsubscribe();
     }
-  }, [viewTab, selectedDate, selectedMonth, userId, initialDailyStats]);
+  }, [viewTab, selectedDate, selectedMonth, userId, initialDailyStats, members]);
 
   // This useEffect fetches NON-CACHED UI data (recent transactions for today)
   // It runs separately from the stats cache.

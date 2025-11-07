@@ -111,6 +111,17 @@ export default function MonthlyViewPage({ userId }) {
     setAvailableMembers(allAvailableMembers);
   }, [members, allTransactions, selectedMonth]);
 
+  // Clear selected member if they're no longer in the available members list
+  useEffect(() => {
+    if (selectedMemberId && availableMembers.length > 0) {
+      const memberStillAvailable = availableMembers.some(m => m.id === selectedMemberId);
+      if (!memberStillAvailable) {
+        setSelectedMemberId('');
+        setMonthlyData(null);
+      }
+    }
+  }, [availableMembers, selectedMemberId]);
+
   const calculateMonthlyData = useCallback(() => {
     if (!selectedMemberId || !selectedMonth) {
       setMonthlyData(null);
@@ -162,15 +173,19 @@ export default function MonthlyViewPage({ userId }) {
       monthlyTarget = calculateMonthlyTargetFromTransactions(memberTransactions);
     }
 
-    // Pro-rate for archive month if this is the month they were archived
+    // Handle archived members: pro-rate for archive month, zero for months after
     if (member.archived && member.archivedOn) {
       const archiveDate = member.archivedOn.toDate();
       const archiveMonthStart = new Date(
         Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
       );
       
+      // If viewing month AFTER archive month, target should be 0
+      if (startDate > archiveMonthStart) {
+        monthlyTarget = 0;
+      }
       // If viewing the exact month they were archived, pro-rate the target
-      if (startDate.getTime() === archiveMonthStart.getTime()) {
+      else if (startDate.getTime() === archiveMonthStart.getTime()) {
         const totalDaysInMonth = new Date(
           startDate.getFullYear(),
           startDate.getMonth() + 1,
@@ -183,6 +198,7 @@ export default function MonthlyViewPage({ userId }) {
           (daysBeforeArchive / totalDaysInMonth) * monthlyTarget
         );
       }
+      // If viewing month before archive, use full target (handled by default)
     }
 
     let balanceBroughtForward = 0; // Negative means due, positive means credit
