@@ -124,14 +124,17 @@ export default function DashboardPage({ userId }) {
           });
           
           if (isStale || hasArchivedMembersInDues) {
-            // Stats exist but might be stale or contain archived members, recalculate in background
-            if (!hasArchivedMembersInDues) {
-              setMonthlyStats(data); // Show existing data immediately if not showing archived members
+            // Stats exist but need recalculation
+            if (hasArchivedMembersInDues) {
+              // Keep loading state while recalculating to avoid showing stale data
+              setLoading(true);
             } else {
-              setMonthlyStats(null); // Clear data if it contains archived members
+              // Show existing data for normal staleness
+              setMonthlyStats(data);
             }
             updateMonthlyStats(userId, selectedMonth).catch(error => {
               console.error("Error refreshing monthly stats:", error);
+              setLoading(false);
             });
           } else {
             // Stats are fresh, just display them
@@ -139,6 +142,7 @@ export default function DashboardPage({ userId }) {
               ...(prevStats || {}), // Keep previous state if it exists
               ...data     // Overwrite with new data
             }));
+            setLoading(false);
           }
         } else {
           // If no stats doc exists, trigger an update
