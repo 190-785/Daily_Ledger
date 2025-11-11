@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   collection,
   query,
@@ -51,6 +51,9 @@ export default function DashboardPage({ userId }) {
     pendingMembers: [],
     recentTransactions: [],
   }), []);
+  
+  // Ref to prevent infinite recalculation loops
+  const isRecalculatingMonthly = useRef(false);
   
   // Modal states
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
@@ -106,11 +109,15 @@ export default function DashboardPage({ userId }) {
 
       return () => unsubscribe();
     } else {
+      // Reset the recalculation flag when month changes
+      isRecalculatingMonthly.current = false;
+      
       const monthlyStatsRef = doc(db, "users", userId, "monthly_stats", selectedMonth);
 
       const unsubscribe = onSnapshot(monthlyStatsRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
+          
           // Check if stats are stale (older than 10 seconds) or might contain archived member data
           const updatedAt = data.updatedAt?.toDate();
           const now = new Date();
@@ -123,8 +130,11 @@ export default function DashboardPage({ userId }) {
             return member && member.archived;
           });
           
-          if (isStale || hasArchivedMembersInDues) {
+          // Only trigger recalculation if needed AND not already recalculating
+          if ((isStale || hasArchivedMembersInDues) && !isRecalculatingMonthly.current) {
             // Stats exist but need recalculation
+            isRecalculatingMonthly.current = true; // Set flag to prevent infinite loop
+            
             if (hasArchivedMembersInDues) {
               // Keep loading state while recalculating to avoid showing stale data
               setLoading(true);
@@ -134,19 +144,23 @@ export default function DashboardPage({ userId }) {
               setMonthlyStats(data);
               setLoading(false);
             }
-            updateMonthlyStats(userId, selectedMonth).catch(error => {
-              console.error("Error refreshing monthly stats:", error);
-              setLoading(false);
-              setMonthlyStats(null);
-            });
-          } else {
-            // Stats are fresh, just display them
-            setMonthlyStats(prevStats => ({
-              ...(prevStats || {}), // Keep previous state if it exists
-              ...data     // Overwrite with new data
-            }));
+            
+            updateMonthlyStats(userId, selectedMonth)
+              .then(() => {
+                isRecalculatingMonthly.current = false; // Reset flag
+              })
+              .catch(error => {
+                console.error("Error refreshing monthly stats:", error);
+                setLoading(false);
+                setMonthlyStats(null);
+                isRecalculatingMonthly.current = false; // Reset flag
+              });
+          } else if (!isRecalculatingMonthly.current) {
+            // Stats are fresh and not recalculating, just display them
+            setMonthlyStats(data);
             setLoading(false);
           }
+          // If isRecalculatingMonthly.current is true, do nothing - wait for recalc to finish
         } else {
           // If no stats doc exists, trigger an update
           setLoading(true);
