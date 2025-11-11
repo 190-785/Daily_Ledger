@@ -128,13 +128,16 @@ export default function DashboardPage({ userId }) {
             if (hasArchivedMembersInDues) {
               // Keep loading state while recalculating to avoid showing stale data
               setLoading(true);
+              setMonthlyStats(null);
             } else {
               // Show existing data for normal staleness
               setMonthlyStats(data);
+              setLoading(false);
             }
             updateMonthlyStats(userId, selectedMonth).catch(error => {
               console.error("Error refreshing monthly stats:", error);
               setLoading(false);
+              setMonthlyStats(null);
             });
           } else {
             // Stats are fresh, just display them
@@ -146,13 +149,14 @@ export default function DashboardPage({ userId }) {
           }
         } else {
           // If no stats doc exists, trigger an update
+          setLoading(true);
           setMonthlyStats(null); // Set to null while it calculates
           updateMonthlyStats(userId, selectedMonth).catch(error => {
             console.error("Error calculating monthly stats:", error);
             setMonthlyStats(null); // Set to null on error
+            setLoading(false);
           });
         }
-        setLoading(false);
       });
 
       return () => unsubscribe();
