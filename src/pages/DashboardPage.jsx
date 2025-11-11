@@ -58,6 +58,8 @@ export default function DashboardPage({ userId }) {
   // Modal states
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  
+
 
   // Load members and transactions
   useEffect(() => {
@@ -85,6 +87,11 @@ export default function DashboardPage({ userId }) {
   // This useEffect handles REACTIVE updates to the dashboard
   // It listens for changes to the cached stats docs
   useEffect(() => {
+    // Don't set up listeners until members are loaded
+    if (members.length === 0) {
+      return;
+    }
+    
     setLoading(true);
     if (viewTab === "daily") {
       const dailyStatsRef = doc(db, "users", userId, "daily_stats", selectedDate);
@@ -118,16 +125,24 @@ export default function DashboardPage({ userId }) {
         if (docSnap.exists()) {
           const data = docSnap.data();
           
-          // Check if stats are stale (older than 10 seconds) or might contain archived member data
+          // Check if stats are stale (older than 60 seconds) or might contain archived member data
           const updatedAt = data.updatedAt?.toDate();
           const now = new Date();
-          const isStale = !updatedAt || (now - updatedAt) > 10000; // 10 seconds
+          const ageInSeconds = updatedAt ? Math.round((now - updatedAt)/1000) : null;
+          const isStale = !updatedAt || ageInSeconds > 60; // 60 seconds (increased from 10)
           
-          // Also check if any member in membersWithDues is archived
-          // (This indicates stats need recalculation to exclude archived members)
+          // Also check if any member in membersWithDues is archived for a FUTURE month
+          // (Archived members should appear in their archive month, but not in future months)
           const hasArchivedMembersInDues = (data.membersWithDues || []).some(memberDue => {
             const member = members.find(m => m.id === memberDue.memberId);
-            return member && member.archived;
+            if (!member || !member.archived || !member.archivedOn) return false;
+            
+            // Get the archive month in YYYY-MM format
+            const archiveDate = member.archivedOn.toDate();
+            const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
+            
+            // Member should NOT appear in months AFTER their archive month
+            return selectedMonth > archiveMonth;
           });
           
           // Only trigger recalculation if needed AND not already recalculating
@@ -145,12 +160,22 @@ export default function DashboardPage({ userId }) {
               setLoading(false);
             }
             
+            // Set a timeout to prevent infinite loading
+            const recalcTimeout = setTimeout(() => {
+              if (isRecalculatingMonthly.current) {
+                setLoading(false);
+                isRecalculatingMonthly.current = false;
+              }
+            }, 10000); // 10 second timeout
+            
             updateMonthlyStats(userId, selectedMonth)
               .then(() => {
+                clearTimeout(recalcTimeout);
                 isRecalculatingMonthly.current = false; // Reset flag
               })
               .catch(error => {
                 console.error("Error refreshing monthly stats:", error);
+                clearTimeout(recalcTimeout);
                 setLoading(false);
                 setMonthlyStats(null);
                 isRecalculatingMonthly.current = false; // Reset flag
@@ -213,23 +238,15 @@ export default function DashboardPage({ userId }) {
         console.error("Failed to auto-update daily stats:", error);
       });
       
-      // Recalculate monthly stats for current month and future months
-      // Because a transaction in previous months affects future outstanding
-      const currentMonth = getMonthYear(new Date(selectedDate));
+      // Recalculate monthly stats when transactions change
+      // Only recalculate for current month (today) - future months will be calculated on-demand when viewed
       const today = new Date();
       const todayMonth = getMonthYear(today);
       
-      // Always recalculate the current month
-      updateMonthlyStats(userId, currentMonth).catch((error) => {
+      // Always recalculate current month (today) as it's actively used
+      updateMonthlyStats(userId, todayMonth).catch((error) => {
         console.error("Failed to auto-update monthly stats:", error);
       });
-      
-      // If viewing a past month, also recalculate current month
-      if (currentMonth !== todayMonth) {
-        updateMonthlyStats(userId, todayMonth).catch((error) => {
-          console.error("Failed to auto-update current month stats:", error);
-        });
-      }
     }
   }, [allTransactions, selectedDate, userId]); // Re-run when transactions or date change
   const handleExportToExcel = () => {

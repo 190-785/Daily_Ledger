@@ -469,8 +469,22 @@ export async function updateMonthlyStats(userId, monthYear) {
       // Check if outstanding was cleared this month
       const hasOutstandingCleared = thisMonthTransactions.some(t => t.type === 'outstanding_cleared');
 
-      // Only add to membersWithDues if they have outstanding AND it hasn't been cleared this month
-      if (finalBalance > 0 && !hasOutstandingCleared) {
+      // Check if member is archived and if so, whether they should appear in this month's dues
+      let shouldIncludeInDues = true;
+      if (currentMember.archived && currentMember.archivedOn) {
+        const archiveDate = currentMember.archivedOn.toDate();
+        const archiveMonthStart = new Date(
+          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
+        );
+        
+        // Exclude archived members from dues for months AFTER their archive month
+        if (startDate > archiveMonthStart) {
+          shouldIncludeInDues = false;
+        }
+      }
+
+      // Only add to membersWithDues if they have outstanding AND it hasn't been cleared this month AND should be included
+      if (finalBalance > 0 && !hasOutstandingCleared && shouldIncludeInDues) {
         totalOutstanding += finalBalance;
         membersWithDues.push({
           memberId: currentMember.id,
