@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   collection,
   query,
@@ -52,9 +52,14 @@ export default function DashboardPage({ userId }) {
     recentTransactions: [],
   }), []);
   
+  // Ref to prevent infinite recalculation loops
+  const isRecalculatingMonthly = useRef(false);
+  
   // Modal states
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  
+
 
   // Load members and transactions
   useEffect(() => {
@@ -82,6 +87,11 @@ export default function DashboardPage({ userId }) {
   // This useEffect handles REACTIVE updates to the dashboard
   // It listens for changes to the cached stats docs
   useEffect(() => {
+    // Don't set up listeners until members are loaded
+    if (members.length === 0) {
+      return;
+    }
+    
     setLoading(true);
     if (viewTab === "daily") {
       const dailyStatsRef = doc(db, "users", userId, "daily_stats", selectedDate);
@@ -106,44 +116,97 @@ export default function DashboardPage({ userId }) {
 
       return () => unsubscribe();
     } else {
+      // Reset the recalculation flag when month changes
+      isRecalculatingMonthly.current = false;
+      
       const monthlyStatsRef = doc(db, "users", userId, "monthly_stats", selectedMonth);
 
       const unsubscribe = onSnapshot(monthlyStatsRef, (docSnap) => {
+        console.log(`[${selectedMonth}] Snapshot - exists: ${docSnap.exists()}, isRecalc: ${isRecalculatingMonthly.current}`);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          // Check if stats are stale (older than 10 seconds)
+          
+          // Check if stats are stale (older than 60 seconds) or might contain archived member data
           const updatedAt = data.updatedAt?.toDate();
           const now = new Date();
-          const isStale = !updatedAt || (now - updatedAt) > 10000; // 10 seconds
+          const ageInSeconds = updatedAt ? Math.round((now - updatedAt)/1000) : null;
+          const isStale = !updatedAt || ageInSeconds > 60; // 60 seconds (increased from 10)
           
-          if (isStale) {
-            // Stats exist but might be stale, recalculate in background
-            setMonthlyStats(data); // Show existing data immediately
-            updateMonthlyStats(userId, selectedMonth).catch(error => {
-              console.error("Error refreshing monthly stats:", error);
-            });
-          } else {
-            // Stats are fresh, just display them
-            setMonthlyStats(prevStats => ({
-              ...(prevStats || {}), // Keep previous state if it exists
-              ...data     // Overwrite with new data
-            }));
+          // Also check if any member in membersWithDues is archived for a FUTURE month
+          // (Archived members should appear in their archive month, but not in future months)
+          const hasArchivedMembersInDues = (data.membersWithDues || []).some(memberDue => {
+            const member = members.find(m => m.id === memberDue.memberId);
+            if (!member || !member.archived || !member.archivedOn) return false;
+            
+            // Get the archive month in YYYY-MM format
+            const archiveDate = member.archivedOn.toDate();
+            const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
+            
+            // Member should NOT appear in months AFTER their archive month
+            return selectedMonth > archiveMonth;
+          });
+          
+          console.log(`[${selectedMonth}] Stale: ${isStale}, HasArchived: ${hasArchivedMembersInDues}`);
+          
+          // Only trigger recalculation if needed AND not already recalculating
+          if ((isStale || hasArchivedMembersInDues) && !isRecalculatingMonthly.current) {
+            console.log(`[${selectedMonth}] Starting recalculation...`);
+            // Stats exist but need recalculation
+            isRecalculatingMonthly.current = true; // Set flag to prevent infinite loop
+            
+            if (hasArchivedMembersInDues) {
+              // Keep loading state while recalculating to avoid showing stale data
+              setLoading(true);
+              setMonthlyStats(null);
+            } else {
+              // Show existing data for normal staleness
+              setMonthlyStats(data);
+              setLoading(false);
+            }
+            
+            // Set a timeout to prevent infinite loading
+            const recalcTimeout = setTimeout(() => {
+              if (isRecalculatingMonthly.current) {
+                setLoading(false);
+                isRecalculatingMonthly.current = false;
+              }
+            }, 10000); // 10 second timeout
+            
+            updateMonthlyStats(userId, selectedMonth)
+              .then(() => {
+                console.log(`[${selectedMonth}] Recalculation complete, resetting flag`);
+                clearTimeout(recalcTimeout);
+                isRecalculatingMonthly.current = false; // Reset flag
+                // The onSnapshot will fire with updated data, so we don't need to do anything here
+              })
+              .catch(error => {
+                console.error(`Error refreshing monthly stats:`, error);
+                clearTimeout(recalcTimeout);
+                setLoading(false);
+                setMonthlyStats(null);
+                isRecalculatingMonthly.current = false; // Reset flag
+              });
+          } else if (!isRecalculatingMonthly.current) {
+            // Stats are fresh and not recalculating, just display them
+            setMonthlyStats(data);
+            setLoading(false);
           }
           // If isRecalculatingMonthly.current is true, wait for recalculation to finish
         } else {
           // If no stats doc exists, trigger an update
+          setLoading(true);
           setMonthlyStats(null); // Set to null while it calculates
           updateMonthlyStats(userId, selectedMonth).catch(error => {
-            console.error("Error calculating monthly stats:", error);
+            console.error(`Error calculating monthly stats:`, error);
             setMonthlyStats(null); // Set to null on error
+            setLoading(false);
           });
         }
-        setLoading(false);
       });
 
       return () => unsubscribe();
     }
-  }, [viewTab, selectedDate, selectedMonth, userId, initialDailyStats]);
+  }, [viewTab, selectedDate, selectedMonth, userId, initialDailyStats, members]);
 
   // This useEffect fetches NON-CACHED UI data (recent transactions for today)
   // It runs separately from the stats cache.
@@ -181,23 +244,15 @@ export default function DashboardPage({ userId }) {
         console.error("Failed to auto-update daily stats:", error);
       });
       
-      // Recalculate monthly stats for current month and future months
-      // Because a transaction in previous months affects future outstanding
-      const currentMonth = getMonthYear(new Date(selectedDate));
+      // Recalculate monthly stats when transactions change
+      // Only recalculate for current month (today) - future months will be calculated on-demand when viewed
       const today = new Date();
       const todayMonth = getMonthYear(today);
       
-      // Always recalculate the current month
-      updateMonthlyStats(userId, currentMonth).catch((error) => {
+      // Always recalculate current month (today) as it's actively used
+      updateMonthlyStats(userId, todayMonth).catch((error) => {
         console.error("Failed to auto-update monthly stats:", error);
       });
-      
-      // If viewing a past month, also recalculate current month
-      if (currentMonth !== todayMonth) {
-        updateMonthlyStats(userId, todayMonth).catch((error) => {
-          console.error("Failed to auto-update current month stats:", error);
-        });
-      }
     }
   }, [allTransactions, selectedDate, userId]); // Re-run when transactions or date change
   const handleExportToExcel = () => {

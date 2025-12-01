@@ -211,11 +211,9 @@ export async function updateMonthlyStats(userId, monthYear) {
       
       if (member.archivedOn) {
         const archiveDate = member.archivedOn.toDate();
-        const archiveMonthStart = new Date(
-          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
-        );
+        const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
         // Exclude if viewing month is after archive month
-        return startDate < archiveMonthStart;
+        return monthYear < archiveMonth;
       }
       
       // If archived but no archivedOn date, exclude from current stats
@@ -247,17 +245,16 @@ export async function updateMonthlyStats(userId, monthYear) {
       membersMap.set(member.id, member);
     });
 
-    // Also include archived members who were active during or before this month
+    // Also include archived members who were archived IN or AFTER this month
+    // (meaning they were still active during this month or haven't been archived yet)
     const archivedMembersForThisMonth = allCurrentMembers.filter((member) => {
       if (!member.archived) return false;
       
       if (member.archivedOn) {
         const archiveDate = member.archivedOn.toDate();
-        const archiveMonthStart = new Date(
-          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
-        );
-        // Include if they were archived in this month or later (so they were active before/during)
-        return startDate <= archiveMonthStart;
+        const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
+        // Include if they were archived in this month OR later (they were active during this month)
+        return monthYear <= archiveMonth;
       }
       
       return false;
@@ -271,11 +268,17 @@ export async function updateMonthlyStats(userId, monthYear) {
     });
 
     // Find memberIds that appear in ANY transactions but don't exist as current members
+    // Don't create virtual members for archived members (check the full member list)
     const virtualMembers = new Map();
+    const archivedMemberIds = new Set(
+      allCurrentMembers.filter(m => m.archived).map(m => m.id)
+    );
+    
     allTransactions.forEach((transaction) => {
       if (
         !membersMap.has(transaction.memberId) &&
-        !virtualMembers.has(transaction.memberId)
+        !virtualMembers.has(transaction.memberId) &&
+        !archivedMemberIds.has(transaction.memberId) // Don't create virtual member for archived members
       ) {
         // Create a virtual member with default values
         virtualMembers.set(transaction.memberId, {
@@ -469,8 +472,32 @@ export async function updateMonthlyStats(userId, monthYear) {
       // Check if outstanding was cleared this month
       const hasOutstandingCleared = thisMonthTransactions.some(t => t.type === 'outstanding_cleared');
 
-      // Only add to membersWithDues if they have outstanding AND it hasn't been cleared this month
+      // Check if member is archived and if so, whether they should appear in this month's dues
+      let shouldIncludeInDues = true;
+      if (currentMember.archived && currentMember.archivedOn) {
+        const archiveDate = currentMember.archivedOn.toDate();
+        // Format as YYYY-MM for month comparison
+        const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
+        const currentMonth = monthYear; // This is already in YYYY-MM format
+        
+        console.log(`[${currentMember.name}] Archive check: currentMonth=${currentMonth}, archiveMonth=${archiveMonth}, shouldExclude=${currentMonth > archiveMonth}`);
+        
+        // Exclude archived members from dues for months AFTER their archive month
+        if (currentMonth > archiveMonth) {
+          shouldIncludeInDues = false;
+          console.log(`[${currentMember.name}] EXCLUDED from ${currentMonth} dues (archived in ${archiveMonth})`);
+        }
+      }
+
+      // Debug: Log if member has balance and will be added
       if (finalBalance > 0 && !hasOutstandingCleared) {
+        console.log(`[${currentMember.name}] Has balance: ${finalBalance}, shouldInclude: ${shouldIncludeInDues}, archived: ${currentMember.archived}`);
+      }
+
+      // Only add to membersWithDues if they have outstanding AND it hasn't been cleared this month AND should be included
+      if (finalBalance > 0 && !hasOutstandingCleared && shouldIncludeInDues) {
+        console.log(`[${currentMember.name}] ADDING to membersWithDues with due: ${finalBalance}`);
+
         totalOutstanding += finalBalance;
         membersWithDues.push({
           memberId: currentMember.id,
