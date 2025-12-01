@@ -191,7 +191,8 @@ export default function DashboardPage({ userId }) {
             setMonthlyStats(data);
             setLoading(false);
           }
-          // If isRecalculatingMonthly.current is true, wait for recalculation to finishlse {
+          // If isRecalculatingMonthly.current is true, wait for recalculation to finish
+        } else {
           // If no stats doc exists, trigger an update
           setLoading(true);
           setMonthlyStats(null); // Set to null while it calculates
