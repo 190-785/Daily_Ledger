@@ -482,8 +482,15 @@ export async function updateMonthlyStats(userId, monthYear) {
         }
       }
 
+      // Debug: Log if member has balance and will be added
+      if (finalBalance > 0 && !hasOutstandingCleared) {
+        console.log(`[${currentMember.name}] Has balance: ${finalBalance}, shouldInclude: ${shouldIncludeInDues}, archived: ${currentMember.archived}`);
+      }
+
       // Only add to membersWithDues if they have outstanding AND it hasn't been cleared this month AND should be included
       if (finalBalance > 0 && !hasOutstandingCleared && shouldIncludeInDues) {
+        console.log(`[${currentMember.name}] ADDING to membersWithDues with due: ${finalBalance}`);
+
         totalOutstanding += finalBalance;
         membersWithDues.push({
           memberId: currentMember.id,
