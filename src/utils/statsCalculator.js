@@ -245,14 +245,15 @@ export async function updateMonthlyStats(userId, monthYear) {
       membersMap.set(member.id, member);
     });
 
-    // Also include archived members who were active during or before this month
+    // Also include archived members who were archived IN or AFTER this month
+    // (meaning they were still active during this month or haven't been archived yet)
     const archivedMembersForThisMonth = allCurrentMembers.filter((member) => {
       if (!member.archived) return false;
       
       if (member.archivedOn) {
         const archiveDate = member.archivedOn.toDate();
         const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
-        // Include if they were archived in this month or later (so they were active before/during)
+        // Include if they were archived in this month OR later (they were active during this month)
         return monthYear <= archiveMonth;
       }
       
@@ -267,11 +268,17 @@ export async function updateMonthlyStats(userId, monthYear) {
     });
 
     // Find memberIds that appear in ANY transactions but don't exist as current members
+    // Don't create virtual members for archived members (check the full member list)
     const virtualMembers = new Map();
+    const archivedMemberIds = new Set(
+      allCurrentMembers.filter(m => m.archived).map(m => m.id)
+    );
+    
     allTransactions.forEach((transaction) => {
       if (
         !membersMap.has(transaction.memberId) &&
-        !virtualMembers.has(transaction.memberId)
+        !virtualMembers.has(transaction.memberId) &&
+        !archivedMemberIds.has(transaction.memberId) // Don't create virtual member for archived members
       ) {
         // Create a virtual member with default values
         virtualMembers.set(transaction.memberId, {
