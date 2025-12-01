@@ -129,6 +129,10 @@ export default function DashboardPage({ userId }) {
               ...data     // Overwrite with new data
             }));
           }
+<<<<<<< Updated upstream
+=======
+          // If isRecalculatingMonthly.current is true, wait for recalculation to finish
+>>>>>>> Stashed changes
         } else {
           // If no stats doc exists, trigger an update
           setMonthlyStats(null); // Set to null while it calculates
