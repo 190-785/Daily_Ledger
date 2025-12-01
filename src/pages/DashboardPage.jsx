@@ -122,6 +122,7 @@ export default function DashboardPage({ userId }) {
       const monthlyStatsRef = doc(db, "users", userId, "monthly_stats", selectedMonth);
 
       const unsubscribe = onSnapshot(monthlyStatsRef, (docSnap) => {
+        console.log(`[${selectedMonth}] Snapshot - exists: ${docSnap.exists()}, isRecalc: ${isRecalculatingMonthly.current}`);
         if (docSnap.exists()) {
           const data = docSnap.data();
           
@@ -145,8 +146,11 @@ export default function DashboardPage({ userId }) {
             return selectedMonth > archiveMonth;
           });
           
+          console.log(`[${selectedMonth}] Stale: ${isStale}, HasArchived: ${hasArchivedMembersInDues}`);
+          
           // Only trigger recalculation if needed AND not already recalculating
           if ((isStale || hasArchivedMembersInDues) && !isRecalculatingMonthly.current) {
+            console.log(`[${selectedMonth}] Starting recalculation...`);
             // Stats exist but need recalculation
             isRecalculatingMonthly.current = true; // Set flag to prevent infinite loop
             
@@ -170,8 +174,10 @@ export default function DashboardPage({ userId }) {
             
             updateMonthlyStats(userId, selectedMonth)
               .then(() => {
+                console.log(`[${selectedMonth}] Recalculation complete, resetting flag`);
                 clearTimeout(recalcTimeout);
                 isRecalculatingMonthly.current = false; // Reset flag
+                // The onSnapshot will fire with updated data, so we don't need to do anything here
               })
               .catch(error => {
                 console.error(`Error refreshing monthly stats:`, error);
