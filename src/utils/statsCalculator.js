@@ -473,12 +473,12 @@ export async function updateMonthlyStats(userId, monthYear) {
       let shouldIncludeInDues = true;
       if (currentMember.archived && currentMember.archivedOn) {
         const archiveDate = currentMember.archivedOn.toDate();
-        const archiveMonthStart = new Date(
-          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
-        );
+        // Format as YYYY-MM for month comparison
+        const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
+        const currentMonth = monthYear; // This is already in YYYY-MM format
         
         // Exclude archived members from dues for months AFTER their archive month
-        if (startDate > archiveMonthStart) {
+        if (currentMonth > archiveMonth) {
           shouldIncludeInDues = false;
         }
       }
