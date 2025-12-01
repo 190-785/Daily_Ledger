@@ -122,8 +122,6 @@ export default function DashboardPage({ userId }) {
       const monthlyStatsRef = doc(db, "users", userId, "monthly_stats", selectedMonth);
 
       const unsubscribe = onSnapshot(monthlyStatsRef, (docSnap) => {
-        console.log(`📊 [${selectedMonth}] Snapshot received, exists:`, docSnap.exists());
-        
         if (docSnap.exists()) {
           const data = docSnap.data();
           
@@ -133,11 +131,8 @@ export default function DashboardPage({ userId }) {
           const ageInSeconds = updatedAt ? Math.round((now - updatedAt)/1000) : null;
           const isStale = !updatedAt || ageInSeconds > 60; // 60 seconds (increased from 10)
           
-          console.log(`📊 [${selectedMonth}] Stale:`, isStale, `Age: ${ageInSeconds}s`);
-          
           // Also check if any member in membersWithDues is archived for a FUTURE month
           // (Archived members should appear in their archive month, but not in future months)
-          const archivedMembersInFuture = [];
           const hasArchivedMembersInDues = (data.membersWithDues || []).some(memberDue => {
             const member = members.find(m => m.id === memberDue.memberId);
             if (!member || !member.archived || !member.archivedOn) return false;
@@ -147,21 +142,11 @@ export default function DashboardPage({ userId }) {
             const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
             
             // Member should NOT appear in months AFTER their archive month
-            const shouldNotBeHere = selectedMonth > archiveMonth;
-            if (shouldNotBeHere) {
-              archivedMembersInFuture.push(`${member.name} (archived: ${archiveMonth})`);
-            }
-            return shouldNotBeHere;
+            return selectedMonth > archiveMonth;
           });
-          
-          if (archivedMembersInFuture.length > 0) {
-            console.log(`⚠️ [${selectedMonth}] Archived members detected in future month:`, archivedMembersInFuture);
-          }
-          console.log(`📊 [${selectedMonth}] HasArchivedMembers:`, hasArchivedMembersInDues, `IsRecalculating:`, isRecalculatingMonthly.current);
           
           // Only trigger recalculation if needed AND not already recalculating
           if ((isStale || hasArchivedMembersInDues) && !isRecalculatingMonthly.current) {
-            console.log(`🔄 [${selectedMonth}] Triggering recalculation...`);
             // Stats exist but need recalculation
             isRecalculatingMonthly.current = true; // Set flag to prevent infinite loop
             
@@ -185,39 +170,27 @@ export default function DashboardPage({ userId }) {
             
             updateMonthlyStats(userId, selectedMonth)
               .then(() => {
-                console.log(`✅ [${selectedMonth}] Recalculation completed`);
                 clearTimeout(recalcTimeout);
                 isRecalculatingMonthly.current = false; // Reset flag
               })
               .catch(error => {
-                console.error(`❌ [${selectedMonth}] Error refreshing monthly stats:`, error);
+                console.error(`Error refreshing monthly stats:`, error);
                 clearTimeout(recalcTimeout);
                 setLoading(false);
                 setMonthlyStats(null);
                 isRecalculatingMonthly.current = false; // Reset flag
               });
           } else if (!isRecalculatingMonthly.current) {
-            console.log(`✅ [${selectedMonth}] Stats are fresh, displaying`);
             // Stats are fresh and not recalculating, just display them
             setMonthlyStats(data);
             setLoading(false);
-          } else {
-            console.log(`⏳ [${selectedMonth}] Waiting for recalculation to complete`);
-            // If we're stuck waiting and archived members are still detected after timeout,
-            // it means the recalculation didn't fix the issue. Display the data anyway.
-            // This prevents infinite loading.
-            if (hasArchivedMembersInDues) {
-              console.warn(`⚠️ [${selectedMonth}] Recalculation in progress but archived members still present. Will timeout and display anyway.`);
-            }
           }
-          // If isRecalculatingMonthly.current is true, do nothing - wait for recalc to finish
-        } else {
-          console.log(`📄 [${selectedMonth}] No document exists, creating...`);
+          // If isRecalculatingMonthly.current is true, wait for recalculation to finishlse {
           // If no stats doc exists, trigger an update
           setLoading(true);
           setMonthlyStats(null); // Set to null while it calculates
           updateMonthlyStats(userId, selectedMonth).catch(error => {
-            console.error(`❌ [${selectedMonth}] Error calculating monthly stats:`, error);
+            console.error(`Error calculating monthly stats:`, error);
             setMonthlyStats(null); // Set to null on error
             setLoading(false);
           });
