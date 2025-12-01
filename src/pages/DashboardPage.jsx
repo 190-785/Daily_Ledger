@@ -137,6 +137,7 @@ export default function DashboardPage({ userId }) {
           
           // Also check if any member in membersWithDues is archived for a FUTURE month
           // (Archived members should appear in their archive month, but not in future months)
+          const archivedMembersInFuture = [];
           const hasArchivedMembersInDues = (data.membersWithDues || []).some(memberDue => {
             const member = members.find(m => m.id === memberDue.memberId);
             if (!member || !member.archived || !member.archivedOn) return false;
@@ -146,9 +147,16 @@ export default function DashboardPage({ userId }) {
             const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
             
             // Member should NOT appear in months AFTER their archive month
-            return selectedMonth > archiveMonth;
+            const shouldNotBeHere = selectedMonth > archiveMonth;
+            if (shouldNotBeHere) {
+              archivedMembersInFuture.push(`${member.name} (archived: ${archiveMonth})`);
+            }
+            return shouldNotBeHere;
           });
           
+          if (archivedMembersInFuture.length > 0) {
+            console.log(`⚠️ [${selectedMonth}] Archived members detected in future month:`, archivedMembersInFuture);
+          }
           console.log(`📊 [${selectedMonth}] HasArchivedMembers:`, hasArchivedMembersInDues, `IsRecalculating:`, isRecalculatingMonthly.current);
           
           // Only trigger recalculation if needed AND not already recalculating
@@ -195,6 +203,12 @@ export default function DashboardPage({ userId }) {
             setLoading(false);
           } else {
             console.log(`⏳ [${selectedMonth}] Waiting for recalculation to complete`);
+            // If we're stuck waiting and archived members are still detected after timeout,
+            // it means the recalculation didn't fix the issue. Display the data anyway.
+            // This prevents infinite loading.
+            if (hasArchivedMembersInDues) {
+              console.warn(`⚠️ [${selectedMonth}] Recalculation in progress but archived members still present. Will timeout and display anyway.`);
+            }
           }
           // If isRecalculatingMonthly.current is true, do nothing - wait for recalc to finish
         } else {
