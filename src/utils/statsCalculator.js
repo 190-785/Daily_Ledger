@@ -211,11 +211,9 @@ export async function updateMonthlyStats(userId, monthYear) {
       
       if (member.archivedOn) {
         const archiveDate = member.archivedOn.toDate();
-        const archiveMonthStart = new Date(
-          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
-        );
+        const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
         // Exclude if viewing month is after archive month
-        return startDate < archiveMonthStart;
+        return monthYear < archiveMonth;
       }
       
       // If archived but no archivedOn date, exclude from current stats
@@ -253,11 +251,9 @@ export async function updateMonthlyStats(userId, monthYear) {
       
       if (member.archivedOn) {
         const archiveDate = member.archivedOn.toDate();
-        const archiveMonthStart = new Date(
-          Date.UTC(archiveDate.getFullYear(), archiveDate.getMonth(), 1)
-        );
+        const archiveMonth = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}`;
         // Include if they were archived in this month or later (so they were active before/during)
-        return startDate <= archiveMonthStart;
+        return monthYear <= archiveMonth;
       }
       
       return false;
