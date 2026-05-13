@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import MemberSelector from "./MemberSelector";
 
 export default function CreateListModal({ isOpen, onClose, onSubmit, members, existingList = null }) {
@@ -7,6 +7,17 @@ export default function CreateListModal({ isOpen, onClose, onSubmit, members, ex
   const [selectedMemberIds, setSelectedMemberIds] = useState(existingList?.memberIds || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Sync form state when modal opens or existingList changes
+  // This ensures old members are pre-selected when editing a list
+  useEffect(() => {
+    if (isOpen) {
+      setName(existingList?.name || "");
+      setDescription(existingList?.description || "");
+      setSelectedMemberIds(existingList?.memberIds || []);
+      setError("");
+    }
+  }, [isOpen, existingList]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
